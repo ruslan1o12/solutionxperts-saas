@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import RoleSelect from "./role-select";
 
 export default async function TeamPage() {
@@ -20,6 +21,13 @@ export default async function TeamPage() {
         Admins can access everything. Salesmen see customers, invoices, and the map. Technicians
         only see their assigned jobs.
       </p>
+
+      <Link
+        href="/dashboard/settings/rate-card"
+        className="block bg-white border border-line rounded-2xl p-4 mb-4 font-bold text-steel"
+      >
+        Manage rate card (used by the AI estimator) →
+      </Link>
 
       <div className="flex flex-col gap-2">
         {(profiles ?? []).map((p) => (

@@ -52,6 +52,12 @@ export default async function CustomerDetailPage({
       >
         Create quote / estimate
       </Link>
+      <Link
+        href={`/dashboard/customers/${id}/estimate`}
+        className="block text-center bg-white border-2 border-signal text-signal font-bold rounded-xl py-3 mt-2"
+      >
+        📷 AI estimate from photos
+      </Link>
 
       {(quotes ?? []).length > 0 && (
         <div className="bg-white border border-line rounded-2xl p-4 mt-4">

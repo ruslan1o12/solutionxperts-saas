@@ -70,6 +70,26 @@ create table if not exists public.jobs (
   created_at timestamptz default now()
 );
 
+create table if not exists public.rate_card (
+  id uuid primary key default gen_random_uuid(),
+  service_name text not null,
+  unit text not null default 'job', -- e.g. sqft, hour, job
+  low_price numeric not null default 0,
+  high_price numeric not null default 0,
+  notes text,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
+insert into public.rate_card (service_name, unit, low_price, high_price, notes)
+select * from (values
+  ('Handyman labor', 'hour', 55, 85, 'General repairs, no specialty materials'),
+  ('Interior/exterior cleaning', 'sqft', 0.15, 0.35, 'Standard residential clean'),
+  ('Pothole repair', 'sqft', 8, 18, 'Cold patch to hot mix depending on depth'),
+  ('Road/lot resurfacing', 'sqft', 2.50, 5.50, 'Sealcoating and minor resurfacing')
+) as v(service_name, unit, low_price, high_price, notes)
+where not exists (select 1 from public.rate_card);
+
 -- One-time bootstrap: anyone with the old default role becomes admin so the
 -- first user (you) doesn't get locked out when roles are introduced.
 update public.profiles set role = 'admin' where role = 'employee' or role is null;
@@ -81,6 +101,7 @@ alter table public.customer_notes enable row level security;
 alter table public.door_logs enable row level security;
 alter table public.quotes enable row level security;
 alter table public.jobs enable row level security;
+alter table public.rate_card enable row level security;
 
 drop policy if exists "team read profiles" on public.profiles;
 create policy "team read profiles" on public.profiles for select using (auth.role() = 'authenticated');
@@ -125,6 +146,17 @@ create policy "job update" on public.jobs for update using (
 drop policy if exists "job delete" on public.jobs;
 create policy "job delete" on public.jobs for delete using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','salesman'))
+);
+
+-- Rate card: everyone signed in can read it (salesmen need it while estimating),
+-- only admins can change the actual prices.
+drop policy if exists "rate card read" on public.rate_card;
+create policy "rate card read" on public.rate_card for select using (auth.role() = 'authenticated');
+drop policy if exists "rate card admin write" on public.rate_card;
+create policy "rate card admin write" on public.rate_card for all using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+) with check (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 
 -- auto-create a profile row whenever someone signs up

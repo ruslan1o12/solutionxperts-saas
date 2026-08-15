@@ -30,6 +30,20 @@ export default function QuoteBuilderPage() {
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
 
   useEffect(() => {
+    const key = `sx_estimate_${params.id}`;
+    const stored = sessionStorage.getItem(key);
+    if (stored) {
+      try {
+        const parsedLines = JSON.parse(stored) as { desc: string; qty: string; price: string }[];
+        if (parsedLines.length) {
+          setLines(parsedLines.map((l) => ({ ...l, id: Math.random().toString(36).slice(2) })));
+        }
+      } catch {}
+      sessionStorage.removeItem(key);
+    }
+  }, [params.id]);
+
+  useEffect(() => {
     supabase
       .from("customers")
       .select("id,name,contact")
