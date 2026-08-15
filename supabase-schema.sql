@@ -102,6 +102,30 @@ create table if not exists public.work_days (
   unique(user_id, work_date)
 );
 
+create table if not exists public.job_photos (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid references public.jobs(id) on delete cascade,
+  phase text not null, -- 'before' | 'after'
+  storage_path text not null,
+  uploaded_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
+create table if not exists public.expenses (
+  id uuid primary key default gen_random_uuid(),
+  expense_date date not null default current_date,
+  category text not null default 'General',
+  amount numeric not null default 0,
+  notes text,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
+-- Private storage bucket for before/after job photos (not publicly readable)
+insert into storage.buckets (id, name, public)
+values ('job-photos', 'job-photos', false)
+on conflict (id) do nothing;
+
 -- One-time bootstrap: anyone with the old default role becomes admin so the
 -- first user (you) doesn't get locked out when roles are introduced.
 update public.profiles set role = 'admin' where role = 'employee' or role is null;
@@ -115,6 +139,8 @@ alter table public.quotes enable row level security;
 alter table public.jobs enable row level security;
 alter table public.rate_card enable row level security;
 alter table public.work_days enable row level security;
+alter table public.job_photos enable row level security;
+alter table public.expenses enable row level security;
 
 drop policy if exists "team read profiles" on public.profiles;
 create policy "team read profiles" on public.profiles for select using (auth.role() = 'authenticated');
@@ -180,6 +206,41 @@ create policy "own day log" on public.work_days for all using (user_id = auth.ui
 drop policy if exists "office read all day logs" on public.work_days;
 create policy "office read all day logs" on public.work_days for select using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','salesman'))
+);
+
+-- Job photos: anyone signed in can upload (technicians included); only admins can read them back.
+drop policy if exists "job photos insert" on public.job_photos;
+create policy "job photos insert" on public.job_photos for insert with check (auth.role() = 'authenticated');
+drop policy if exists "job photos admin select" on public.job_photos;
+create policy "job photos admin select" on public.job_photos for select using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "job photos admin delete" on public.job_photos;
+create policy "job photos admin delete" on public.job_photos for delete using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Expenses: admin only, end to end.
+drop policy if exists "expenses admin all" on public.expenses;
+create policy "expenses admin all" on public.expenses for all using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+) with check (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Storage: anyone signed in can upload into job-photos; only admins can read/list/delete.
+drop policy if exists "job photos storage insert" on storage.objects;
+create policy "job photos storage insert" on storage.objects for insert
+  with check (bucket_id = 'job-photos' and auth.role() = 'authenticated');
+drop policy if exists "job photos storage admin select" on storage.objects;
+create policy "job photos storage admin select" on storage.objects for select using (
+  bucket_id = 'job-photos'
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "job photos storage admin delete" on storage.objects;
+create policy "job photos storage admin delete" on storage.objects for delete using (
+  bucket_id = 'job-photos'
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 
 -- auto-create a profile row whenever someone signs up

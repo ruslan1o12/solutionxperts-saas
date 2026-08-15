@@ -3,6 +3,7 @@ import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import MarkPaidButton from "./mark-paid-button";
 import DeleteInvoiceButton from "./delete-invoice-button";
+import ExportInvoicesButton from "./export-invoices-button";
 
 export default async function InvoicesPage() {
   const { role } = await getCurrentProfile();
@@ -34,11 +35,14 @@ export default async function InvoicesPage() {
 
   return (
     <div>
-      <div className="text-xs font-extrabold uppercase tracking-wide text-steel mb-3">
-        Invoices
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs font-extrabold uppercase tracking-wide text-steel">
+          Invoices
+        </div>
+        <ExportInvoicesButton quotes={all} />
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-6">
+      <div className="grid grid-cols-3 md:grid-cols-3 md:max-w-md gap-2 mb-6">
         <div className="bg-white border border-line rounded-2xl p-3 text-center">
           <div className="text-lg font-extrabold">${outstandingTotal.toFixed(0)}</div>
           <div className="text-[10px] font-semibold text-neutral-500 uppercase">Outstanding</div>
@@ -82,7 +86,7 @@ function InvoiceGroup({
       <div className={`text-xs font-extrabold uppercase tracking-wide mb-2 ${accent}`}>
         {title}
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-3">
         {quotes.map((q) => (
           <div key={q.id} className="bg-white border border-line rounded-2xl p-4">
             <div className="flex justify-between items-start mb-1">

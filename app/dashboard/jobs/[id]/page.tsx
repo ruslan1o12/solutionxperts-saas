@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/getProfile";
 import Link from "next/link";
 import JobActions from "./job-actions";
+import JobPhotoUploader from "./job-photo-uploader";
+import JobPhotoGallery from "./job-photo-gallery";
 
 export default async function JobDetailPage({
   params,
@@ -8,6 +11,7 @@ export default async function JobDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const { role, user } = await getCurrentProfile();
   const supabase = await createClient();
 
   const { data: job } = await supabase
@@ -19,6 +23,8 @@ export default async function JobDetailPage({
   if (!job) {
     return <p className="text-neutral-500">Job not found.</p>;
   }
+
+  const canUploadPhotos = job.assigned_to === user?.id || role === "admin" || role === "salesman";
 
   return (
     <div>
@@ -47,6 +53,15 @@ export default async function JobDetailPage({
       </div>
 
       <JobActions job={job} />
+
+      {canUploadPhotos && (
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <JobPhotoUploader jobId={id} phase="before" />
+          <JobPhotoUploader jobId={id} phase="after" />
+        </div>
+      )}
+
+      {role === "admin" && <JobPhotoGallery jobId={id} />}
     </div>
   );
 }
