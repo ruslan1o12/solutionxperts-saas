@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import MarkPaidButton from "./mark-paid-button";
+import DeleteInvoiceButton from "./delete-invoice-button";
 
 export default async function InvoicesPage() {
   const { role } = await getCurrentProfile();
@@ -94,8 +95,14 @@ function InvoiceGroup({
               <div className="text-lg font-extrabold">${Number(q.total).toFixed(2)}</div>
             </div>
             {q.status !== "Paid" && (
-              <div className="mt-2">
+              <div className="mt-2 flex items-center justify-between">
                 <MarkPaidButton quoteId={q.id} />
+                <DeleteInvoiceButton quoteId={q.id} />
+              </div>
+            )}
+            {q.status === "Paid" && (
+              <div className="mt-2 flex justify-end">
+                <DeleteInvoiceButton quoteId={q.id} />
               </div>
             )}
           </div>

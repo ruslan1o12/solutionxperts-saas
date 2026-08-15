@@ -23,10 +23,12 @@ export default function AppShell({
   const isAdmin = role === "admin";
 
   const secondaryLinks = [
+    { href: "/dashboard/my-day", label: "My Day" },
     isOfficeStaff && { href: "/dashboard", label: "Overview" },
     isOfficeStaff && { href: "/dashboard/customers", label: "Customers" },
     isOfficeStaff && { href: "/dashboard/invoices", label: "Invoices" },
     isAdmin && { href: "/dashboard/team", label: "Team & rate card" },
+    isAdmin && { href: "/dashboard/team-activity", label: "Team activity" },
   ].filter(Boolean) as { href: string; label: string }[];
 
   return (

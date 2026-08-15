@@ -3,6 +3,7 @@ import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import StatusEditor from "./status-editor";
+import DeleteCustomerButton from "./delete-customer-button";
 
 export default async function CustomerDetailPage({
   params,
@@ -92,6 +93,8 @@ export default async function CustomerDetailPage({
           </div>
         ))}
       </div>
+
+      <DeleteCustomerButton customerId={id} />
     </div>
   );
 }

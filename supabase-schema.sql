@@ -90,6 +90,18 @@ select * from (values
 ) as v(service_name, unit, low_price, high_price, notes)
 where not exists (select 1 from public.rate_card);
 
+create table if not exists public.work_days (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) not null,
+  work_date date not null default current_date,
+  started_at timestamptz,
+  ended_at timestamptz,
+  doors_knocked int,
+  notes text,
+  created_at timestamptz default now(),
+  unique(user_id, work_date)
+);
+
 -- One-time bootstrap: anyone with the old default role becomes admin so the
 -- first user (you) doesn't get locked out when roles are introduced.
 update public.profiles set role = 'admin' where role = 'employee' or role is null;
@@ -102,6 +114,7 @@ alter table public.door_logs enable row level security;
 alter table public.quotes enable row level security;
 alter table public.jobs enable row level security;
 alter table public.rate_card enable row level security;
+alter table public.work_days enable row level security;
 
 drop policy if exists "team read profiles" on public.profiles;
 create policy "team read profiles" on public.profiles for select using (auth.role() = 'authenticated');
@@ -157,6 +170,16 @@ create policy "rate card admin write" on public.rate_card for all using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 ) with check (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Work days: everyone manages their own day log; admins/salesmen can also read
+-- everyone's, for the Team Activity report.
+drop policy if exists "own day log" on public.work_days;
+create policy "own day log" on public.work_days for all using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+drop policy if exists "office read all day logs" on public.work_days;
+create policy "office read all day logs" on public.work_days for select using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','salesman'))
 );
 
 -- auto-create a profile row whenever someone signs up
