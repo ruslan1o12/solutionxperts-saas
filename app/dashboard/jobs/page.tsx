@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/getProfile";
 import Link from "next/link";
+import ScheduleView from "./schedule-view";
 
 const STATUS_COLOR: Record<string, string> = {
   Scheduled: "bg-[#E7EEF5] text-steel",
@@ -13,36 +14,30 @@ const STATUS_COLOR: Record<string, string> = {
 export default async function JobsPage() {
   const { role, user } = await getCurrentProfile();
   const isOfficeStaff = role === "admin" || role === "salesman";
-  const supabase = await createClient();
 
-  let query = supabase
-    .from("jobs")
-    .select("*, customers(name, address, contact), quotes(total, status)")
-    .order("scheduled_at", { ascending: true });
-
-  if (!isOfficeStaff) {
-    query = query.eq("assigned_to", user?.id);
+  if (isOfficeStaff) {
+    return <ScheduleView />;
   }
 
-  const { data: jobs } = await query;
+  // Technicians get a simple "my jobs" list instead of the full calendar.
+  const supabase = await createClient();
+  const { data: jobs } = await supabase
+    .from("jobs")
+    .select("*, customers(name, address, contact), quotes(total, status)")
+    .eq("assigned_to", user?.id)
+    .order("scheduled_at", { ascending: true });
+
   const list = jobs ?? [];
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs font-extrabold uppercase tracking-wide text-steel">
-          {isOfficeStaff ? `All jobs (${list.length})` : `Your jobs (${list.length})`}
-        </div>
-        {isOfficeStaff && (
-          <Link href="/dashboard/jobs/new" className="text-signal font-bold text-sm">
-            + Schedule
-          </Link>
-        )}
+      <div className="text-xs font-extrabold uppercase tracking-wide text-steel mb-3">
+        Your jobs ({list.length})
       </div>
 
       {list.length === 0 && (
         <p className="text-sm text-neutral-500 text-center py-12">
-          {isOfficeStaff ? "No jobs scheduled yet." : "No jobs assigned to you yet."}
+          No jobs assigned to you yet.
         </p>
       )}
 

@@ -17,27 +17,31 @@ export default function RateCardEditor({ items }: { items: RateItem[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function updateField(id: string, field: string, value: string) {
-    await supabase
+    const { error } = await supabase
       .from("rate_card")
       .update({ [field]: field.includes("price") ? Number(value) || 0 : value })
       .eq("id", id);
+    if (error) return setError(error.message);
     router.refresh();
   }
 
   async function remove(id: string) {
     if (!confirm("Remove this service from the rate card?")) return;
-    await supabase.from("rate_card").delete().eq("id", id);
+    const { error } = await supabase.from("rate_card").delete().eq("id", id);
+    if (error) return setError(error.message);
     router.refresh();
   }
 
   async function addNew() {
     setAdding(true);
+    setError(null);
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    await supabase.from("rate_card").insert({
+    const { error } = await supabase.from("rate_card").insert({
       service_name: "New service",
       unit: "job",
       low_price: 0,
@@ -45,6 +49,7 @@ export default function RateCardEditor({ items }: { items: RateItem[] }) {
       created_by: user?.id,
     });
     setAdding(false);
+    if (error) return setError(error.message);
     router.refresh();
   }
 
@@ -54,6 +59,14 @@ export default function RateCardEditor({ items }: { items: RateItem[] }) {
         These are the ONLY prices the AI estimator is allowed to use. Keep them accurate — the AI
         multiplies these against what it sees in photos.
       </p>
+
+      {error && (
+        <div className="bg-[#F1E7E6] border border-[#E7CFCD] text-danger text-sm rounded-xl p-3 mb-4">
+          Couldn&apos;t save: {error}. If this keeps happening, re-run the latest{" "}
+          <code className="text-xs">supabase-schema.sql</code> in Supabase — it sets up the
+          permissions this screen needs.
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 mb-4">
         {items.map((item) => (
