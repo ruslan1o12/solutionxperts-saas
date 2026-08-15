@@ -1,7 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/getProfile";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export default async function OverviewPage() {
+  const { role } = await getCurrentProfile();
+  if (role === "technician") redirect("/dashboard/jobs");
+
   const supabase = await createClient();
 
   const [{ data: customers }, { data: quotes }, { data: doorLogs }] = await Promise.all([

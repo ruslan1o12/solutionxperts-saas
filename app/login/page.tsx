@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -42,12 +43,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col">
       <div className="bg-ink px-6 pt-10 pb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-ink border border-signal/40 flex items-center justify-center text-paper font-black text-lg">
-            SX
-          </div>
+          <Image src="/icon-192.png" alt="" width={40} height={40} className="rounded-lg" />
           <div>
             <div className="text-paper font-extrabold text-lg leading-tight">SolutionXperts</div>
-            <div className="text-neutral-400 text-[11px] font-semibold uppercase tracking-wider">
+            <div className="text-mint text-[11px] font-semibold uppercase tracking-wider">
               Team Portal
             </div>
           </div>

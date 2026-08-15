@@ -20,6 +20,11 @@ export default function QuoteBuilderPage() {
   );
   const [lines, setLines] = useState<LineItem[]>([newLine()]);
   const [taxRate, setTaxRate] = useState("13");
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  });
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
@@ -97,6 +102,7 @@ export default function QuoteBuilderPage() {
       tax_rate: Number(taxRate) || 0,
       total,
       status: "Sent",
+      due_date: dueDate || null,
       stripe_payment_link: data.url,
       created_by: user?.id,
     });
@@ -162,6 +168,18 @@ export default function QuoteBuilderPage() {
           onChange={(e) => setTaxRate(e.target.value)}
           inputMode="decimal"
           className="w-20 border border-line rounded-lg px-2 py-1.5 text-sm bg-white"
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-bold uppercase tracking-wide text-neutral-500 mb-1.5">
+          Payment due date
+        </label>
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="w-full border border-line rounded-lg px-3 py-2.5 bg-white"
         />
       </div>
 

@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #1C1C1E;
-  --color-paper: #F4F2EC;
-  --color-steel: #2B4C6F;
-  --color-signal: #FF6B1A;
-  --color-caution: #FFC423;
-  --color-line: #DBD7CC;
-  --color-good: #3A7D44;
+  --color-ink: #1B4332;
+  --color-paper: #F4F7F2;
+  --color-steel: #235240;
+  --color-signal: #3D8B4C;
+  --color-mint: #CFF5D6;
+  --color-line: #DCE5DA;
+  --color-good: #2F8F4E;
   --color-danger: #B3261E;
 }
 
 :root {
-  --background: #F4F2EC;
-  --foreground: #1C1C1E;
+  --background: #F4F7F2;
+  --foreground: #1B4332;
 }
 
 body {
@@ -23,7 +23,7 @@ body {
 }
 
 .hazard-strip {
-  height: 6px;
-  background: repeating-linear-gradient(135deg, #1C1C1E 0 10px, #FF6B1A 10px 20px);
+  height: 5px;
+  background: linear-gradient(90deg, #1B4332 0%, #3D8B4C 50%, #CFF5D6 100%);
 }
 

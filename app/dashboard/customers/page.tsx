@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/getProfile";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 
 const PILL: Record<string, string> = {
@@ -10,6 +12,9 @@ const PILL: Record<string, string> = {
 };
 
 export default async function CustomersPage() {
+  const { role } = await getCurrentProfile();
+  if (role === "technician") redirect("/dashboard/jobs");
+
   const supabase = await createClient();
   const { data: customers } = await supabase
     .from("customers")
