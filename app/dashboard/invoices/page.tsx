@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import MarkPaidButton from "./mark-paid-button";
 import DeleteInvoiceButton from "./delete-invoice-button";
 import ExportInvoicesButton from "./export-invoices-button";
+import EmailInvoiceButton from "./email-invoice-button";
 
 export default async function InvoicesPage() {
   const { role } = await getCurrentProfile();
@@ -97,6 +98,17 @@ function InvoiceGroup({
                 </div>
               </div>
               <div className="text-lg font-extrabold">${Number(q.total).toFixed(2)}</div>
+            </div>
+            <div className="flex items-center gap-4 mt-2 mb-2">
+              <a
+                href={`/api/invoice-pdf/${q.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold text-steel"
+              >
+                View / Download PDF
+              </a>
+              <EmailInvoiceButton quoteId={q.id} />
             </div>
             {q.status !== "Paid" && (
               <div className="mt-2 flex items-center justify-between">

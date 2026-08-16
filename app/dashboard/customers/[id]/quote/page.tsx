@@ -28,6 +28,7 @@ export default function QuoteBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
 
   useEffect(() => {
     const key = `sx_estimate_${params.id}`;
@@ -110,19 +111,24 @@ export default function QuoteBuilderPage() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    await supabase.from("quotes").insert({
-      customer_id: params.id,
-      line_items: lines.filter((l) => l.desc.trim()),
-      tax_rate: Number(taxRate) || 0,
-      total,
-      status: "Sent",
-      due_date: dueDate || null,
-      stripe_payment_link: data.url,
-      created_by: user?.id,
-    });
+    const { data: savedQuote } = await supabase
+      .from("quotes")
+      .insert({
+        customer_id: params.id,
+        line_items: lines.filter((l) => l.desc.trim()),
+        tax_rate: Number(taxRate) || 0,
+        total,
+        status: "Sent",
+        due_date: dueDate || null,
+        stripe_payment_link: data.url,
+        created_by: user?.id,
+      })
+      .select()
+      .single();
 
     await supabase.from("customers").update({ status: "Quoted" }).eq("id", params.id);
 
+    setSavedQuoteId(savedQuote?.id ?? null);
     setPaymentLink(data.url);
     setWorking(false);
   }
@@ -239,6 +245,16 @@ export default function QuoteBuilderPage() {
             This opens your phone&apos;s email or messaging app with the estimate and payment link
             pre-filled — review it, then hit send.
           </p>
+          {savedQuoteId && (
+            <a
+              href={`/api/invoice-pdf/${savedQuoteId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-steel font-bold text-sm mt-4"
+            >
+              View / download PDF invoice
+            </a>
+          )}
         </div>
       )}
     </div>

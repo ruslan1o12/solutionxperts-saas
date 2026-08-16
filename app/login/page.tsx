@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -12,8 +11,19 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("theme_settings")
+      .select("logo_url")
+      .eq("id", 1)
+      .single()
+      .then(({ data }) => setLogoUrl(data?.logo_url ?? null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +53,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col">
       <div className="bg-ink px-6 pt-10 pb-6">
         <div className="flex items-center gap-3">
-          <Image src="/icon-192.png" alt="" width={40} height={40} className="rounded-lg" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoUrl || "/icon-192.png"} alt="" width={40} height={40} className="rounded-lg" style={{ width: 40, height: 40 }} />
           <div>
             <div className="text-paper font-extrabold text-lg leading-tight">SolutionXperts</div>
             <div className="text-mint text-[11px] font-semibold uppercase tracking-wider">

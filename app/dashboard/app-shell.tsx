@@ -2,21 +2,24 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import Logo from "@/app/logo";
 import { usePathname } from "next/navigation";
 import SignOutButton from "./sign-out-button";
+import NotificationBell from "./notification-bell";
 
 type Role = "admin" | "salesman" | "technician" | null;
 type NavItem = { href: string; label: string; icon: IconName };
-type IconName = "camera" | "map" | "calendar" | "grid" | "users" | "invoice" | "team" | "chart" | "clock" | "cash";
+type IconName = "camera" | "map" | "calendar" | "grid" | "users" | "invoice" | "team" | "chart" | "clock" | "cash" | "bell" | "chat";
 
 export default function AppShell({
   role,
   fullName,
+  logoUrl,
   children,
 }: {
   role: Role;
   fullName: string | null;
+  logoUrl: string | null;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -31,7 +34,10 @@ export default function AppShell({
   ].filter(Boolean) as NavItem[];
 
   const secondaryLinks: NavItem[] = [
+    { href: "/dashboard/notifications", label: "Notifications", icon: "bell" },
+    { href: "/dashboard/messages", label: "Team Chat", icon: "chat" },
     { href: "/dashboard/my-day", label: "My Day", icon: "clock" },
+    { href: "/dashboard/profile", label: "My Profile", icon: "users" },
     isOfficeStaff && { href: "/dashboard", label: "Overview", icon: "grid" },
     isOfficeStaff && { href: "/dashboard/customers", label: "Customers", icon: "users" },
     isOfficeStaff && { href: "/dashboard/invoices", label: "Invoices", icon: "invoice" },
@@ -48,13 +54,14 @@ export default function AppShell({
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 md:left-0 bg-ink z-20">
         <div className="flex items-center gap-3 px-5 pt-6 pb-5">
-          <Image src="/icon-96.png" alt="" width={38} height={38} className="rounded-md" />
-          <div>
+          <Logo logoUrl={logoUrl} size={38} />
+          <div className="flex-1">
             <div className="text-paper font-extrabold text-base leading-tight">SolutionXperts</div>
             <div className="text-mint text-[10px] font-semibold uppercase tracking-wider">
               {fullName || "Team Workspace"} · {role ?? ""}
             </div>
           </div>
+          <NotificationBell light />
         </div>
         <div className="hazard-strip" />
         <nav className="flex-1 overflow-y-auto py-4">
@@ -83,13 +90,14 @@ export default function AppShell({
             <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
-        <Image src="/icon-96.png" alt="" width={34} height={34} className="rounded-md" />
+        <Logo logoUrl={logoUrl} size={34} />
         <div className="flex-1">
           <div className="text-paper font-extrabold text-base leading-tight">SolutionXperts</div>
           <div className="text-mint text-[10px] font-semibold uppercase tracking-wider">
             {fullName || "Team Workspace"} · {role ?? ""}
           </div>
         </div>
+        <NotificationBell light />
       </header>
       <div className="hazard-strip sticky top-[68px] z-20 md:hidden" />
 
@@ -116,7 +124,7 @@ export default function AppShell({
           <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
           <div className="relative w-72 max-w-[80vw] bg-white h-full flex flex-col">
             <div className="bg-ink px-5 pt-6 pb-4 flex items-center gap-3">
-              <Image src="/icon-96.png" alt="" width={34} height={34} className="rounded-md" />
+              <Logo logoUrl={logoUrl} size={34} />
               <div>
                 <div className="text-paper font-extrabold text-sm">{fullName || "Team member"}</div>
                 <div className="text-mint text-[10px] font-semibold uppercase tracking-wider">{role ?? ""}</div>
@@ -265,6 +273,19 @@ function NavIcon({ name }: { name: IconName }) {
         <svg {...common}>
           <circle cx="12" cy="12" r="9" stroke={s} strokeWidth="2" />
           <path d="M12 7v5l3.5 2" stroke={s} strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case "bell":
+      return (
+        <svg {...common}>
+          <path d="M6 9a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13 6 9Z" stroke={s} strokeWidth="2" strokeLinejoin="round" />
+          <path d="M9.5 17a2.5 2.5 0 0 0 5 0" stroke={s} strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case "chat":
+      return (
+        <svg {...common}>
+          <path d="M4 5h16v11H8l-4 4V5Z" stroke={s} strokeWidth="2" strokeLinejoin="round" />
         </svg>
       );
   }

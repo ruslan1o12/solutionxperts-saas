@@ -20,6 +20,7 @@ const STATUS_COLOR: Record<string, string> = {
   Scheduled: "#2B4C6F",
   "On The Way": "#B45F0A",
   Arrived: "#8A5A17",
+  "In Progress": "#B45F0A",
   Completed: "#2F8F4E",
   Cancelled: "#9C9994",
 };

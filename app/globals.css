@@ -24,6 +24,6 @@ body {
 
 .hazard-strip {
   height: 5px;
-  background: linear-gradient(90deg, #1B4332 0%, #3D8B4C 50%, #CFF5D6 100%);
+  background: linear-gradient(90deg, var(--color-ink) 0%, var(--color-signal) 50%, var(--color-mint) 100%);
 }
 

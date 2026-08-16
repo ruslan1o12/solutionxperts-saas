@@ -7,6 +7,7 @@ const STATUS_COLOR: Record<string, string> = {
   Scheduled: "bg-[#E7EEF5] text-steel",
   "On The Way": "bg-[#FFF1DF] text-[#8A5A17]",
   Arrived: "bg-[#FFE9CC] text-[#B45F0A]",
+  "In Progress": "bg-[#FFE9CC] text-[#B45F0A]",
   Completed: "bg-[#E4F1E5] text-good",
   Cancelled: "bg-[#F1E7E6] text-neutral-500",
 };

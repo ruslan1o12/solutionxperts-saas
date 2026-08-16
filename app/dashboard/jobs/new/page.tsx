@@ -78,6 +78,14 @@ export default function NewJobPage() {
 
     setSaving(false);
     if (error) return setError(error.message);
+
+    // Fire-and-forget notification — don't block navigation if it fails
+    fetch("/api/notify-job-assigned", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: data.id }),
+    }).catch(() => {});
+
     router.push(`/dashboard/jobs/${data.id}`);
   }
 

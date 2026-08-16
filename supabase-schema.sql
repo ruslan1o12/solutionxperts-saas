@@ -7,9 +7,18 @@ create extension if not exists "pgcrypto";
 create table if not exists public.profiles (
   id uuid references auth.users(id) primary key,
   full_name text,
+  email text,
+  phone text,
   role text default 'technician', -- admin | salesman | technician
   created_at timestamptz default now()
 );
+
+-- columns added after the first release — safe no-ops if they already exist
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists phone text;
+
+-- backfill email for accounts created before this column existed
+update public.profiles p set email = u.email from auth.users u where p.id = u.id and p.email is null;
 
 create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
@@ -65,7 +74,7 @@ create table if not exists public.jobs (
   quote_id uuid references public.quotes(id) on delete set null,
   assigned_to uuid references auth.users(id),
   scheduled_at timestamptz,
-  status text not null default 'Scheduled', -- Scheduled | On The Way | Arrived | Completed | Cancelled
+  status text not null default 'Scheduled', -- Scheduled | On The Way | Arrived | In Progress | Completed | Cancelled
   created_by uuid references auth.users(id),
   created_at timestamptz default now()
 );
@@ -107,9 +116,46 @@ create table if not exists public.job_photos (
   job_id uuid references public.jobs(id) on delete cascade,
   phase text not null, -- 'before' | 'after'
   storage_path text not null,
+  ai_verified boolean default false,
+  ai_note text,
   uploaded_by uuid references auth.users(id),
   created_at timestamptz default now()
 );
+alter table public.job_photos add column if not exists ai_verified boolean default false;
+alter table public.job_photos add column if not exists ai_note text;
+
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  recipient_id uuid references auth.users(id) not null,
+  title text not null,
+  message text,
+  job_id uuid references public.jobs(id) on delete set null,
+  read boolean default false,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid references auth.users(id),
+  body text not null,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.theme_settings (
+  id int primary key default 1,
+  logo_url text,
+  font_family text default 'system',
+  primary_color text default '#3D8B4C',
+  ink_color text default '#1B4332',
+  updated_at timestamptz default now(),
+  constraint single_row_theme check (id = 1)
+);
+insert into public.theme_settings (id) values (1) on conflict (id) do nothing;
+
+-- Public bucket for branding assets (logo needs to be visible everywhere, including on login before auth)
+insert into storage.buckets (id, name, public)
+values ('branding', 'branding', true)
+on conflict (id) do nothing;
 
 create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),
@@ -120,6 +166,19 @@ create table if not exists public.expenses (
   created_by uuid references auth.users(id),
   created_at timestamptz default now()
 );
+
+create table if not exists public.business_settings (
+  id int primary key default 1,
+  legal_name text default 'SolutionXperts Property Improvement',
+  tax_number text,
+  business_number text,
+  address text,
+  phone text,
+  email text,
+  updated_at timestamptz default now(),
+  constraint single_row check (id = 1)
+);
+insert into public.business_settings (id) values (1) on conflict (id) do nothing;
 
 -- Private storage bucket for before/after job photos (not publicly readable)
 insert into storage.buckets (id, name, public)
@@ -141,6 +200,10 @@ alter table public.rate_card enable row level security;
 alter table public.work_days enable row level security;
 alter table public.job_photos enable row level security;
 alter table public.expenses enable row level security;
+alter table public.business_settings enable row level security;
+alter table public.notifications enable row level security;
+alter table public.messages enable row level security;
+alter table public.theme_settings enable row level security;
 
 drop policy if exists "team read profiles" on public.profiles;
 create policy "team read profiles" on public.profiles for select using (auth.role() = 'authenticated');
@@ -150,6 +213,27 @@ drop policy if exists "admin update roles" on public.profiles;
 create policy "admin update roles" on public.profiles for update using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
+drop policy if exists "self update own profile" on public.profiles;
+create policy "self update own profile" on public.profiles for update using (id = auth.uid());
+
+-- Users can edit their own name/phone, but not their own role — a trigger silently
+-- reverts any role change that didn't come from an admin, so the "self update"
+-- policy above can't be used to self-promote.
+create or replace function public.prevent_self_role_escalation()
+returns trigger as $$
+begin
+  if new.role is distinct from old.role then
+    if not exists (select 1 from public.profiles where id = auth.uid() and role = 'admin') then
+      new.role := old.role;
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists prevent_role_escalation on public.profiles;
+create trigger prevent_role_escalation before update on public.profiles
+for each row execute procedure public.prevent_self_role_escalation();
 
 drop policy if exists "team all customers" on public.customers;
 create policy "team all customers" on public.customers for all
@@ -208,12 +292,23 @@ create policy "office read all day logs" on public.work_days for select using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','salesman'))
 );
 
--- Job photos: anyone signed in can upload (technicians included); only admins can read them back.
+-- Job photos: anyone signed in can upload (technicians included); admins can read
+-- everything, and an uploader can see their own rows' metadata (not the image
+-- bytes — actual photo access is still gated by the storage policy below).
 drop policy if exists "job photos insert" on public.job_photos;
 create policy "job photos insert" on public.job_photos for insert with check (auth.role() = 'authenticated');
 drop policy if exists "job photos admin select" on public.job_photos;
 create policy "job photos admin select" on public.job_photos for select using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "job photos own metadata select" on public.job_photos;
+create policy "job photos own metadata select" on public.job_photos for select using (
+  uploaded_by = auth.uid()
+);
+drop policy if exists "job photos update" on public.job_photos;
+create policy "job photos update" on public.job_photos for update using (
+  uploaded_by = auth.uid()
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 drop policy if exists "job photos admin delete" on public.job_photos;
 create policy "job photos admin delete" on public.job_photos for delete using (
@@ -227,6 +322,69 @@ create policy "expenses admin all" on public.expenses for all using (
 ) with check (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
+
+-- Business settings: everyone signed in can read (needed to generate invoice PDFs),
+-- only admins can edit.
+drop policy if exists "business settings read" on public.business_settings;
+create policy "business settings read" on public.business_settings for select using (auth.role() = 'authenticated');
+drop policy if exists "business settings admin write" on public.business_settings;
+create policy "business settings admin write" on public.business_settings for all using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+) with check (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Notifications: anyone signed in can create one (e.g. a tech notifying admins),
+-- but you can only read/update your own.
+drop policy if exists "notifications insert" on public.notifications;
+create policy "notifications insert" on public.notifications for insert with check (auth.role() = 'authenticated');
+drop policy if exists "notifications own select" on public.notifications;
+create policy "notifications own select" on public.notifications for select using (recipient_id = auth.uid());
+drop policy if exists "notifications own update" on public.notifications;
+create policy "notifications own update" on public.notifications for update using (recipient_id = auth.uid());
+
+-- Messages: shared team channel, everyone signed in can read and post.
+drop policy if exists "messages read" on public.messages;
+create policy "messages read" on public.messages for select using (auth.role() = 'authenticated');
+drop policy if exists "messages insert" on public.messages;
+create policy "messages insert" on public.messages for insert with check (auth.role() = 'authenticated' and sender_id = auth.uid());
+
+-- Theme settings: everyone can read (so the whole site can style itself),
+-- only admins can change branding.
+drop policy if exists "theme read" on public.theme_settings;
+create policy "theme read" on public.theme_settings for select using (true);
+drop policy if exists "theme admin write" on public.theme_settings;
+create policy "theme admin write" on public.theme_settings for all using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+) with check (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Storage: branding bucket is public to read (logo shows on the login page,
+-- before anyone is authenticated); only admins can upload/replace it.
+drop policy if exists "branding public read" on storage.objects;
+create policy "branding public read" on storage.objects for select using (bucket_id = 'branding');
+drop policy if exists "branding admin write" on storage.objects;
+create policy "branding admin write" on storage.objects for insert with check (
+  bucket_id = 'branding'
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "branding admin update" on storage.objects;
+create policy "branding admin update" on storage.objects for update using (
+  bucket_id = 'branding'
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Enable live updates for the team chat
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end $$;
 
 -- Storage: anyone signed in can upload into job-photos; only admins can read/list/delete.
 drop policy if exists "job photos storage insert" on storage.objects;
@@ -247,8 +405,8 @@ create policy "job photos storage admin delete" on storage.objects for delete us
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, full_name)
-  values (new.id, new.raw_user_meta_data->>'full_name');
+  insert into public.profiles (id, full_name, email)
+  values (new.id, new.raw_user_meta_data->>'full_name', new.email);
   return new;
 end;
 $$ language plpgsql security definer;

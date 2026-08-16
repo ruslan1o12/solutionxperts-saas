@@ -2,8 +2,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/getProfile";
 import Link from "next/link";
 import JobActions from "./job-actions";
-import JobPhotoUploader from "./job-photo-uploader";
 import JobPhotoGallery from "./job-photo-gallery";
+import ResendNotifyButton from "./resend-notify-button";
+
+const STATUS_LABEL_COLOR: Record<string, string> = {
+  Scheduled: "text-steel",
+  "On The Way": "text-[#8A5A17]",
+  Arrived: "text-[#B45F0A]",
+  "In Progress": "text-[#B45F0A]",
+  Completed: "text-good",
+};
 
 export default async function JobDetailPage({
   params,
@@ -11,7 +19,7 @@ export default async function JobDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { role, user } = await getCurrentProfile();
+  const { role } = await getCurrentProfile();
   const supabase = await createClient();
 
   const { data: job } = await supabase
@@ -24,7 +32,15 @@ export default async function JobDetailPage({
     return <p className="text-neutral-500">Job not found.</p>;
   }
 
-  const canUploadPhotos = job.assigned_to === user?.id || role === "admin" || role === "salesman";
+  let techName: string | null = null;
+  if (job.assigned_to) {
+    const { data: tech } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", job.assigned_to)
+      .single();
+    techName = tech?.full_name ?? null;
+  }
 
   return (
     <div>
@@ -50,16 +66,14 @@ export default async function JobDetailPage({
             })}
           </div>
         )}
+        <div className={`text-xs font-extrabold uppercase mt-1 ${STATUS_LABEL_COLOR[job.status] ?? ""}`}>
+          {job.status}
+        </div>
       </div>
 
-      <JobActions job={job} />
+      <JobActions job={job} techName={techName} />
 
-      {canUploadPhotos && (
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <JobPhotoUploader jobId={id} phase="before" />
-          <JobPhotoUploader jobId={id} phase="after" />
-        </div>
-      )}
+      {(role === "admin" || role === "salesman") && <ResendNotifyButton jobId={id} />}
 
       {role === "admin" && <JobPhotoGallery jobId={id} />}
     </div>

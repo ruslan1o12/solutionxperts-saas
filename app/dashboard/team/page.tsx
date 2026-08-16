@@ -24,9 +24,21 @@ export default async function TeamPage() {
 
       <Link
         href="/dashboard/settings/rate-card"
-        className="block bg-white border border-line rounded-2xl p-4 mb-4 font-bold text-steel"
+        className="block bg-white border border-line rounded-2xl p-4 mb-3 font-bold text-steel"
       >
         Manage rate card (used by the AI estimator) →
+      </Link>
+      <Link
+        href="/dashboard/settings/business"
+        className="block bg-white border border-line rounded-2xl p-4 mb-3 font-bold text-steel"
+      >
+        Business info (used on invoice PDFs) →
+      </Link>
+      <Link
+        href="/dashboard/settings/theme"
+        className="block bg-white border border-line rounded-2xl p-4 mb-4 font-bold text-steel"
+      >
+        Branding & theme (logo, font, colors) →
       </Link>
 
       <div className="flex flex-col gap-2">
