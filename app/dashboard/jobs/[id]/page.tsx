@@ -33,13 +33,15 @@ export default async function JobDetailPage({
   }
 
   let techName: string | null = null;
+  let photoGateEnabled = true;
   if (job.assigned_to) {
     const { data: tech } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, photo_gate_enabled")
       .eq("id", job.assigned_to)
       .single();
     techName = tech?.full_name ?? null;
+    photoGateEnabled = tech?.photo_gate_enabled !== false;
   }
 
   return (
@@ -71,7 +73,7 @@ export default async function JobDetailPage({
         </div>
       </div>
 
-      <JobActions job={job} techName={techName} />
+      <JobActions job={job} techName={techName} photoGateEnabled={photoGateEnabled} />
 
       {(role === "admin" || role === "salesman") && <ResendNotifyButton jobId={id} />}
 

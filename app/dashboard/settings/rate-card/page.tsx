@@ -16,8 +16,8 @@ export default async function RateCardPage() {
 
   return (
     <div>
-      <Link href="/dashboard/team" className="text-steel font-bold text-sm">
-        ← Back to Team
+      <Link href="/dashboard/settings" className="text-steel font-bold text-sm">
+        ← Back to Settings
       </Link>
       <div className="text-xl font-extrabold mt-3 mb-1">Rate card</div>
       <RateCardEditor items={items ?? []} />

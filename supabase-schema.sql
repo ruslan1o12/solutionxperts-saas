@@ -16,6 +16,7 @@ create table if not exists public.profiles (
 -- columns added after the first release — safe no-ops if they already exist
 alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists phone text;
+alter table public.profiles add column if not exists photo_gate_enabled boolean default true;
 
 -- backfill email for accounts created before this column existed
 update public.profiles p set email = u.email from auth.users u where p.id = u.id and p.email is null;
@@ -25,12 +26,16 @@ create table if not exists public.customers (
   name text not null,
   contact text,
   address text,
+  lat double precision,
+  lng double precision,
   service_type text default 'Handyman',
   status text default 'New',
   follow_up date,
   created_by uuid references auth.users(id),
   created_at timestamptz default now()
 );
+alter table public.customers add column if not exists lat double precision;
+alter table public.customers add column if not exists lng double precision;
 
 create table if not exists public.customer_notes (
   id uuid primary key default gen_random_uuid(),

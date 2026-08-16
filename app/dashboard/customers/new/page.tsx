@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import AddressSearch from "../../address-search";
 
 const TYPES = ["Handyman", "Cleaning", "Pothole Repair", "Road Resurfacing", "Other"];
 
@@ -12,6 +13,8 @@ export default function NewCustomerPage() {
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [address, setAddress] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [type, setType] = useState(TYPES[0]);
   const [followUp, setFollowUp] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +36,8 @@ export default function NewCustomerPage() {
         name: name.trim(),
         contact: contact.trim(),
         address: address.trim(),
+        lat,
+        lng,
         service_type: type,
         follow_up: followUp || null,
         created_by: user?.id,
@@ -70,10 +75,10 @@ export default function NewCustomerPage() {
       </Field>
 
       <Field label="Address">
-        <input
+        <AddressSearch
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          className="w-full border border-line rounded-lg px-3 py-2.5 bg-white"
+          onChange={(v) => { setAddress(v); setLat(null); setLng(null); }}
+          onSelect={(r) => { setAddress(r.label); setLat(r.lat); setLng(r.lng); }}
         />
       </Field>
 

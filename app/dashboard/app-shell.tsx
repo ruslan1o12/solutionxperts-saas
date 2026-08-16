@@ -33,18 +33,20 @@ export default function AppShell({
     { href: "/dashboard/jobs", label: "Schedule", icon: "calendar" },
   ].filter(Boolean) as NavItem[];
 
-  const secondaryLinks: NavItem[] = [
+  const personalLinks: NavItem[] = [
     { href: "/dashboard/notifications", label: "Notifications", icon: "bell" },
     { href: "/dashboard/messages", label: "Team Chat", icon: "chat" },
     { href: "/dashboard/my-day", label: "My Day", icon: "clock" },
     { href: "/dashboard/profile", label: "My Profile", icon: "users" },
-    isOfficeStaff && { href: "/dashboard", label: "Overview", icon: "grid" },
-    isOfficeStaff && { href: "/dashboard/customers", label: "Customers", icon: "users" },
-    isOfficeStaff && { href: "/dashboard/invoices", label: "Invoices", icon: "invoice" },
-    isAdmin && { href: "/dashboard/finances", label: "Finances", icon: "cash" },
-    isAdmin && { href: "/dashboard/team", label: "Team & rate card", icon: "team" },
-    isAdmin && { href: "/dashboard/team-activity", label: "Team activity", icon: "chart" },
-  ].filter(Boolean) as NavItem[];
+  ];
+
+  const businessLinks: NavItem[] = [
+    { href: "/dashboard", label: "Overview", icon: "grid" },
+    { href: "/dashboard/customers", label: "Customers", icon: "users" },
+    { href: "/dashboard/invoices", label: "Invoices", icon: "invoice" },
+  ];
+
+  const settingsLink: NavItem = { href: "/dashboard/settings", label: "Settings", icon: "team" };
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href);
@@ -72,11 +74,29 @@ export default function AppShell({
             <SidebarLink key={item.href} item={item} active={isActive(item.href)} />
           ))}
           <div className="px-4 pt-5 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-            More
+            Personal
           </div>
-          {secondaryLinks.map((item) => (
+          {personalLinks.map((item) => (
             <SidebarLink key={item.href} item={item} active={isActive(item.href)} />
           ))}
+          {isOfficeStaff && (
+            <>
+              <div className="px-4 pt-5 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                Business
+              </div>
+              {businessLinks.map((item) => (
+                <SidebarLink key={item.href} item={item} active={isActive(item.href)} />
+              ))}
+            </>
+          )}
+          {isAdmin && (
+            <>
+              <div className="px-4 pt-5 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                Admin
+              </div>
+              <SidebarLink item={settingsLink} active={isActive(settingsLink.href)} />
+            </>
+          )}
         </nav>
         <div className="p-4 border-t border-white/10">
           <SignOutButton />
@@ -136,19 +156,30 @@ export default function AppShell({
               </button>
             </div>
             <div className="flex-1 py-2 overflow-y-auto">
-              {secondaryLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setDrawerOpen(false)}
-                  className={`flex items-center gap-3 px-5 py-3.5 font-semibold text-sm ${
-                    isActive(link.href) ? "text-signal bg-[#EAF6EC]" : "text-ink"
-                  }`}
-                >
-                  <NavIcon name={link.icon} />
-                  {link.label}
-                </Link>
+              <div className="px-5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Personal
+              </div>
+              {personalLinks.map((link) => (
+                <DrawerLink key={link.href} link={link} active={isActive(link.href)} onClick={() => setDrawerOpen(false)} />
               ))}
+              {isOfficeStaff && (
+                <>
+                  <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Business
+                  </div>
+                  {businessLinks.map((link) => (
+                    <DrawerLink key={link.href} link={link} active={isActive(link.href)} onClick={() => setDrawerOpen(false)} />
+                  ))}
+                </>
+              )}
+              {isAdmin && (
+                <>
+                  <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Admin
+                  </div>
+                  <DrawerLink link={settingsLink} active={isActive(settingsLink.href)} onClick={() => setDrawerOpen(false)} />
+                </>
+              )}
             </div>
             <div className="p-4 border-t border-line">
               <SignOutButton />
@@ -157,6 +188,29 @@ export default function AppShell({
         </div>
       )}
     </div>
+  );
+}
+
+function DrawerLink({
+  link,
+  active,
+  onClick,
+}: {
+  link: NavItem;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Link
+      href={link.href}
+      onClick={onClick}
+      className={`flex items-center gap-3 px-5 py-3 font-semibold text-sm ${
+        active ? "text-signal bg-[#EAF6EC]" : "text-ink"
+      }`}
+    >
+      <NavIcon name={link.icon} />
+      {link.label}
+    </Link>
   );
 }
 

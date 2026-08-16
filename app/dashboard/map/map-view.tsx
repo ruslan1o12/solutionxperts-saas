@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { createClient } from "@/lib/supabase/client";
+import AddressSearch from "../address-search";
 
 type DoorLog = {
   id: string;
@@ -35,24 +36,31 @@ function dotIcon(color: string) {
   });
 }
 
+const LONG_PRESS_MS = 550;
+const MOVE_CANCEL_PX = 12;
+
 export default function MapView() {
   const supabase = createClient();
   const mapRef = useRef<L.Map | null>(null);
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const [logs, setLogs] = useState<DoorLog[]>([]);
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [addressQuery, setAddressQuery] = useState("");
+  const [showAddressSearch, setShowAddressSearch] = useState(false);
 
-  // init map once
   useEffect(() => {
     if (mapRef.current || !mapElRef.current) return;
 
-    const map = L.map(mapElRef.current).setView([42.9834, -81.233], 12); // London, ON default
+    const map = L.map(mapElRef.current).setView([42.9834, -81.233], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors",
       maxZoom: 19,
@@ -65,16 +73,53 @@ export default function MapView() {
       () => {}
     );
 
+    // Long-press (tap and hold) on the map to manually log a door at that spot
+    function startPress(e: L.LeafletMouseEvent) {
+      pressStartRef.current = { x: e.containerPoint.x, y: e.containerPoint.y };
+      pressTimerRef.current = setTimeout(() => {
+        map.dragging.disable();
+        setPendingLabel(null);
+        setPendingCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
+        setSelectedOutcome(null);
+        setNote("");
+        pressTimerRef.current = null;
+        setTimeout(() => map.dragging.enable(), 100);
+      }, LONG_PRESS_MS);
+    }
+    function movePress(e: L.LeafletMouseEvent) {
+      if (!pressTimerRef.current || !pressStartRef.current) return;
+      const dx = e.containerPoint.x - pressStartRef.current.x;
+      const dy = e.containerPoint.y - pressStartRef.current.y;
+      if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_PX) {
+        clearTimeout(pressTimerRef.current);
+        pressTimerRef.current = null;
+      }
+    }
+    function endPress() {
+      if (pressTimerRef.current) {
+        clearTimeout(pressTimerRef.current);
+        pressTimerRef.current = null;
+      }
+    }
+
+    map.on("mousedown", startPress);
+    map.on("mousemove", movePress);
+    map.on("mouseup", endPress);
+    map.on("dragstart", endPress);
+
     loadLogs();
 
     return () => {
+      map.off("mousedown", startPress);
+      map.off("mousemove", movePress);
+      map.off("mouseup", endPress);
+      map.off("dragstart", endPress);
       map.remove();
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // redraw markers when logs change
   useEffect(() => {
     if (!markersLayerRef.current) return;
     markersLayerRef.current.clearLayers();
@@ -98,7 +143,7 @@ export default function MapView() {
     setLogs(data ?? []);
   }
 
-  function startLogging() {
+  function startLoggingGps() {
     setError(null);
     if (!navigator.geolocation) {
       setError("This browser can't access GPS location.");
@@ -108,6 +153,7 @@ export default function MapView() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocating(false);
+        setPendingLabel(null);
         setPendingCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setSelectedOutcome(null);
         setNote("");
@@ -120,6 +166,16 @@ export default function MapView() {
     );
   }
 
+  function selectSearchedAddress(r: { label: string; lat: number; lng: number }) {
+    mapRef.current?.setView([r.lat, r.lng], 18);
+    setPendingLabel(r.label);
+    setPendingCoords({ lat: r.lat, lng: r.lng });
+    setSelectedOutcome(null);
+    setNote("");
+    setShowAddressSearch(false);
+    setAddressQuery("");
+  }
+
   async function confirmLog() {
     if (!pendingCoords || !selectedOutcome) return;
     const {
@@ -130,11 +186,12 @@ export default function MapView() {
       lat: pendingCoords.lat,
       lng: pendingCoords.lng,
       outcome: selectedOutcome,
-      note: note.trim() || null,
+      note: pendingLabel ? `${pendingLabel}${note ? " — " + note : ""}` : note.trim() || null,
       created_by: user?.id,
     });
 
     setPendingCoords(null);
+    setPendingLabel(null);
     setSelectedOutcome(null);
     setNote("");
     loadLogs();
@@ -155,24 +212,43 @@ export default function MapView() {
       <div className="flex flex-wrap gap-3 px-4 py-2.5 bg-white border-b border-line text-[11px] font-semibold">
         {OUTCOMES.map((o) => (
           <span key={o.key} className="flex items-center gap-1.5">
-            <span
-              className="w-2.5 h-2.5 rounded-full inline-block"
-              style={{ background: o.color }}
-            />
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: o.color }} />
             {o.key}
           </span>
         ))}
       </div>
 
+      {showAddressSearch && (
+        <div className="px-4 py-2.5 bg-white border-b border-line">
+          <AddressSearch
+            value={addressQuery}
+            onChange={setAddressQuery}
+            onSelect={selectSearchedAddress}
+            placeholder="Search an address to log manually..."
+          />
+        </div>
+      )}
+
       <div className="relative">
         <div ref={mapElRef} className="h-[calc(100vh-320px)] min-h-[340px] w-full" />
-        <button
-          onClick={startLogging}
-          disabled={locating}
-          className="absolute right-4 bottom-4 z-[400] bg-signal text-white font-extrabold text-sm rounded-full px-5 py-3.5 shadow-lg disabled:opacity-70"
-        >
-          {locating ? "Finding you..." : "+ Log door here"}
-        </button>
+        <p className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] bg-black/60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full">
+          Tap and hold a spot on the map to log a door there
+        </p>
+        <div className="absolute right-4 bottom-4 z-[400] flex flex-col gap-2 items-end">
+          <button
+            onClick={() => setShowAddressSearch((v) => !v)}
+            className="bg-white border border-line text-ink font-bold text-xs rounded-full px-4 py-2.5 shadow-lg"
+          >
+            {showAddressSearch ? "Hide address search" : "Search address"}
+          </button>
+          <button
+            onClick={startLoggingGps}
+            disabled={locating}
+            className="bg-signal text-white font-extrabold text-sm rounded-full px-5 py-3.5 shadow-lg disabled:opacity-70"
+          >
+            {locating ? "Finding you..." : "+ Log door here"}
+          </button>
+        </div>
       </div>
 
       {error && <p className="text-danger text-sm px-4 py-2">{error}</p>}
@@ -180,16 +256,15 @@ export default function MapView() {
       {pendingCoords && (
         <div className="fixed inset-0 bg-black/45 z-[500] flex items-end">
           <div className="bg-white w-full rounded-t-2xl p-4 pb-8 max-h-[80vh] overflow-y-auto">
-            <h3 className="font-extrabold text-lg mb-3">What happened at this door?</h3>
+            <h3 className="font-extrabold text-lg mb-1">What happened at this door?</h3>
+            {pendingLabel && <p className="text-xs text-neutral-500 mb-3">{pendingLabel}</p>}
             <div className="grid grid-cols-2 gap-2 mb-3">
               {OUTCOMES.map((o) => (
                 <button
                   key={o.key}
                   onClick={() => setSelectedOutcome(o.key)}
                   className={`border-2 rounded-lg py-3 px-2 text-sm font-bold text-center ${
-                    selectedOutcome === o.key
-                      ? "border-signal bg-[#FFF1DF]"
-                      : "border-line bg-white"
+                    selectedOutcome === o.key ? "border-signal bg-[#FFF1DF]" : "border-line bg-white"
                   }`}
                 >
                   {o.key}
@@ -204,7 +279,7 @@ export default function MapView() {
             />
             <div className="flex gap-2">
               <button
-                onClick={() => setPendingCoords(null)}
+                onClick={() => { setPendingCoords(null); setPendingLabel(null); }}
                 className="flex-1 border border-line font-bold rounded-xl py-3"
               >
                 Cancel

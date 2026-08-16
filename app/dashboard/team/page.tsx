@@ -3,6 +3,7 @@ import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import RoleSelect from "./role-select";
+import PhotoGateToggle from "./photo-gate-toggle";
 
 export default async function TeamPage() {
   const { role, user } = await getCurrentProfile();
@@ -11,49 +12,37 @@ export default async function TeamPage() {
   const supabase = await createClient();
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name, role, created_at")
+    .select("id, full_name, role, photo_gate_enabled, created_at")
     .order("created_at", { ascending: true });
 
   return (
     <div>
-      <div className="text-xs font-extrabold uppercase tracking-wide text-steel mb-1">Team</div>
+      <Link href="/dashboard/settings" className="text-steel font-bold text-sm">
+        ← Back to Settings
+      </Link>
+      <div className="text-xl font-extrabold mt-3 mb-1">Team & roles</div>
       <p className="text-sm text-neutral-500 mb-4">
         Admins can access everything. Salesmen see customers, invoices, and the map. Technicians
         only see their assigned jobs.
       </p>
 
-      <Link
-        href="/dashboard/settings/rate-card"
-        className="block bg-white border border-line rounded-2xl p-4 mb-3 font-bold text-steel"
-      >
-        Manage rate card (used by the AI estimator) →
-      </Link>
-      <Link
-        href="/dashboard/settings/business"
-        className="block bg-white border border-line rounded-2xl p-4 mb-3 font-bold text-steel"
-      >
-        Business info (used on invoice PDFs) →
-      </Link>
-      <Link
-        href="/dashboard/settings/theme"
-        className="block bg-white border border-line rounded-2xl p-4 mb-4 font-bold text-steel"
-      >
-        Branding & theme (logo, font, colors) →
-      </Link>
-
       <div className="flex flex-col gap-2">
         {(profiles ?? []).map((p) => (
-          <div
-            key={p.id}
-            className="bg-white border border-line rounded-2xl p-4 flex items-center justify-between"
-          >
-            <div>
-              <div className="font-bold">{p.full_name || "Unnamed"}</div>
-              {p.id === user?.id && (
-                <div className="text-[11px] text-neutral-400 font-semibold">You</div>
-              )}
+          <div key={p.id} className="bg-white border border-line rounded-2xl p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-bold">{p.full_name || "Unnamed"}</div>
+                {p.id === user?.id && (
+                  <div className="text-[11px] text-neutral-400 font-semibold">You</div>
+                )}
+              </div>
+              <RoleSelect profileId={p.id} currentRole={p.role} isSelf={p.id === user?.id} />
             </div>
-            <RoleSelect profileId={p.id} currentRole={p.role} isSelf={p.id === user?.id} />
+            {p.role === "technician" && (
+              <div className="mt-3 pt-3 border-t border-line">
+                <PhotoGateToggle profileId={p.id} initialEnabled={p.photo_gate_enabled !== false} />
+              </div>
+            )}
           </div>
         ))}
       </div>

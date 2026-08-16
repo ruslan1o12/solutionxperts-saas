@@ -13,8 +13,8 @@ export default async function BusinessSettingsPage() {
 
   return (
     <div>
-      <Link href="/dashboard/team" className="text-steel font-bold text-sm">
-        ← Back to Team
+      <Link href="/dashboard/settings" className="text-steel font-bold text-sm">
+        ← Back to Settings
       </Link>
       <div className="text-xl font-extrabold mt-3 mb-1">Business info</div>
       <p className="text-sm text-neutral-500 mb-4">

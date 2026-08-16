@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import AddressSearch from "../address-search";
 
 type Customer = { id: string; name: string; address: string | null };
 
@@ -16,6 +17,8 @@ export default function EstimatorHub() {
   const [newName, setNewName] = useState("");
   const [newContact, setNewContact] = useState("");
   const [newAddress, setNewAddress] = useState("");
+  const [newLat, setNewLat] = useState<number | null>(null);
+  const [newLng, setNewLng] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +49,8 @@ export default function EstimatorHub() {
         name: newName.trim(),
         contact: newContact.trim(),
         address: newAddress.trim(),
+        lat: newLat,
+        lng: newLng,
         created_by: user?.id,
       })
       .select()
@@ -120,10 +125,18 @@ export default function EstimatorHub() {
               />
             </Field>
             <Field label="Address">
-              <input
+              <AddressSearch
                 value={newAddress}
-                onChange={(e) => setNewAddress(e.target.value)}
-                className="w-full border border-line rounded-lg px-3 py-2.5"
+                onChange={(v) => {
+                  setNewAddress(v);
+                  setNewLat(null);
+                  setNewLng(null);
+                }}
+                onSelect={(r) => {
+                  setNewAddress(r.label);
+                  setNewLat(r.lat);
+                  setNewLng(r.lng);
+                }}
               />
             </Field>
             {error && <p className="text-danger text-sm mb-2">{error}</p>}

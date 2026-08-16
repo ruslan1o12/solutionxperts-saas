@@ -14,7 +14,15 @@ type Job = {
   quotes: { id: string; total: number; status: string; stripe_payment_link: string | null } | null;
 };
 
-export default function JobActions({ job, techName }: { job: Job; techName?: string | null }) {
+export default function JobActions({
+  job,
+  techName,
+  photoGateEnabled = true,
+}: {
+  job: Job;
+  techName?: string | null;
+  photoGateEnabled?: boolean;
+}) {
   const router = useRouter();
   const supabase = createClient();
   const [status, setStatus] = useState(job.status);
@@ -125,7 +133,9 @@ export default function JobActions({ job, techName }: { job: Job; techName?: str
 
       {status === "Arrived" && (
         <>
-          <JobPhotoUploader jobId={job.id} phase="before" onVerifiedCountChange={setBeforeVerified} />
+          {photoGateEnabled && (
+            <JobPhotoUploader jobId={job.id} phase="before" onVerifiedCountChange={setBeforeVerified} />
+          )}
           {looksLikePhone && (
             <a
               href={`sms:${contact.replace(/\D/g, "")}?&body=${encodeURIComponent(smsText.Arrived)}`}
@@ -136,10 +146,10 @@ export default function JobActions({ job, techName }: { job: Job; techName?: str
           )}
           <button
             onClick={startJob}
-            disabled={working || beforeVerified === 0}
+            disabled={working || (photoGateEnabled && beforeVerified === 0)}
             className="w-full bg-signal text-white font-bold rounded-xl py-3 disabled:opacity-40"
           >
-            {beforeVerified === 0
+            {photoGateEnabled && beforeVerified === 0
               ? "Take a before photo to start"
               : working
               ? "Starting..."
@@ -150,13 +160,15 @@ export default function JobActions({ job, techName }: { job: Job; techName?: str
 
       {status === "In Progress" && (
         <>
-          <JobPhotoUploader jobId={job.id} phase="after" onVerifiedCountChange={setAfterVerified} />
+          {photoGateEnabled && (
+            <JobPhotoUploader jobId={job.id} phase="after" onVerifiedCountChange={setAfterVerified} />
+          )}
           <button
             onClick={markComplete}
-            disabled={working || afterVerified === 0}
+            disabled={working || (photoGateEnabled && afterVerified === 0)}
             className="w-full bg-ink text-paper font-bold rounded-xl py-3 disabled:opacity-40"
           >
-            {afterVerified === 0
+            {photoGateEnabled && afterVerified === 0
               ? "Take an after photo to finish"
               : working
               ? "Finishing..."
