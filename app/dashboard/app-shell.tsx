@@ -9,7 +9,7 @@ import NotificationBell from "./notification-bell";
 
 type Role = "admin" | "salesman" | "technician" | null;
 type NavItem = { href: string; label: string; icon: IconName };
-type IconName = "camera" | "map" | "calendar" | "grid" | "users" | "invoice" | "team" | "chart" | "clock" | "cash" | "bell" | "chat";
+type IconName = "camera" | "map" | "calendar" | "grid" | "users" | "invoice" | "team" | "chart" | "clock" | "cash" | "bell" | "chat" | "gear";
 
 export default function AppShell({
   role,
@@ -46,7 +46,7 @@ export default function AppShell({
     { href: "/dashboard/invoices", label: "Invoices", icon: "invoice" },
   ];
 
-  const settingsLink: NavItem = { href: "/dashboard/settings", label: "Settings", icon: "team" };
+  const settingsLink: NavItem = { href: "/dashboard/settings", label: "Settings", icon: "gear" };
 
   const isActive = (href: string) =>
     href === "/dashboard" ? pathname === href : pathname.startsWith(href);
@@ -340,6 +340,18 @@ function NavIcon({ name }: { name: IconName }) {
       return (
         <svg {...common}>
           <path d="M4 5h16v11H8l-4 4V5Z" stroke={s} strokeWidth="2" strokeLinejoin="round" />
+        </svg>
+      );
+    case "gear":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="3" stroke={s} strokeWidth="2" />
+          <path
+            d="M19.4 13a7.97 7.97 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a8 8 0 0 0-1.7-1L14.9 3h-4l-.4 2.9a8 8 0 0 0-1.7 1l-2.5-1-2 3.4L6.5 11a7.97 7.97 0 0 0 0 2l-2.1 1.6 2 3.4 2.5-1a8 8 0 0 0 1.7 1l.4 2.9h4l.4-2.9a8 8 0 0 0 1.7-1l2.5 1 2-3.4L19.4 13Z"
+            stroke={s}
+            strokeWidth="1.6"
+            strokeLinejoin="round"
+          />
         </svg>
       );
   }

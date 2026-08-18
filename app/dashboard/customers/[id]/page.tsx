@@ -40,11 +40,19 @@ export default async function CustomerDetailPage({
         ← Back to customers
       </Link>
 
-      <div className="mt-3">
-        <div className="text-xl font-extrabold">{customer.name}</div>
-        <div className="text-sm text-neutral-500">{customer.service_type}</div>
-        {customer.contact && <div className="text-sm mt-1">{customer.contact}</div>}
-        {customer.address && <div className="text-sm text-neutral-500">{customer.address}</div>}
+      <div className="mt-3 flex items-start justify-between">
+        <div>
+          <div className="text-xl font-extrabold">{customer.name}</div>
+          <div className="text-sm text-neutral-500">{customer.service_type}</div>
+          {customer.contact && <div className="text-sm mt-1">{customer.contact}</div>}
+          {customer.address && <div className="text-sm text-neutral-500">{customer.address}</div>}
+        </div>
+        <Link
+          href={`/dashboard/customers/${id}/edit`}
+          className="text-steel font-bold text-xs bg-white border border-line rounded-lg px-3 py-1.5 whitespace-nowrap"
+        >
+          Edit
+        </Link>
       </div>
 
       <Link

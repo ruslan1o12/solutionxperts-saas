@@ -30,10 +30,15 @@ export default function NewJobPage() {
 
     supabase
       .from("profiles")
-      .select("id, full_name")
-      .eq("role", "technician")
+      .select("id, full_name, role")
+      .order("full_name")
       .then(({ data }) =>
-        setTechs((data ?? []).map((p) => ({ id: p.id, label: p.full_name || "Unnamed tech" })))
+        setTechs(
+          (data ?? []).map((p) => ({
+            id: p.id,
+            label: `${p.full_name || "Unnamed"} (${p.role})`,
+          }))
+        )
       );
   }, []);
 
@@ -110,13 +115,13 @@ export default function NewJobPage() {
         </select>
       </Field>
 
-      <Field label="Assign technician">
+      <Field label="Assign to">
         <select
           value={techId}
           onChange={(e) => setTechId(e.target.value)}
           className="w-full border border-line rounded-lg px-3 py-2.5 bg-white"
         >
-          <option value="">Select a technician</option>
+          <option value="">Select a team member</option>
           {techs.map((t) => (
             <option key={t.id} value={t.id}>
               {t.label}
@@ -125,8 +130,7 @@ export default function NewJobPage() {
         </select>
         {techs.length === 0 && (
           <p className="text-xs text-neutral-500 mt-1">
-            No technicians yet — set a team member&apos;s role to &quot;technician&quot; on the
-            Team tab first.
+            No team members found yet.
           </p>
         )}
       </Field>

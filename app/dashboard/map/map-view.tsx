@@ -15,6 +15,14 @@ type DoorLog = {
   created_at: string;
 };
 
+type WonCustomer = {
+  id: string;
+  name: string;
+  service_type: string | null;
+  lat: number;
+  lng: number;
+};
+
 const OUTCOMES = [
   { key: "Answered - Interested", color: "#3A7D44" },
   { key: "Answered - Not Interested", color: "#B3261E" },
@@ -36,6 +44,15 @@ function dotIcon(color: string) {
   });
 }
 
+function houseIcon() {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:24px;height:24px;border-radius:6px;background:#2B4C6F;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;">✓</div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
 const LONG_PRESS_MS = 550;
 const MOVE_CANCEL_PX = 12;
 
@@ -44,10 +61,13 @@ export default function MapView() {
   const mapRef = useRef<L.Map | null>(null);
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const customersLayerRef = useRef<L.LayerGroup | null>(null);
   const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const [logs, setLogs] = useState<DoorLog[]>([]);
+  const [wonCustomers, setWonCustomers] = useState<WonCustomer[]>([]);
+  const [showSocialProof, setShowSocialProof] = useState(true);
   const [pendingCoords, setPendingCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<string | null>(null);
@@ -60,12 +80,13 @@ export default function MapView() {
   useEffect(() => {
     if (mapRef.current || !mapElRef.current) return;
 
-    const map = L.map(mapElRef.current).setView([42.9834, -81.233], 12);
+    const map = L.map(mapElRef.current, { attributionControl: false }).setView([42.9834, -81.233], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
       maxZoom: 19,
     }).addTo(map);
+    L.control.attribution({ position: "bottomleft", prefix: false }).addAttribution("© OpenStreetMap").addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
+    customersLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
     navigator.geolocation?.getCurrentPosition(
@@ -108,6 +129,7 @@ export default function MapView() {
     map.on("dragstart", endPress);
 
     loadLogs();
+    loadWonCustomers();
 
     return () => {
       map.off("mousedown", startPress);
@@ -134,6 +156,19 @@ export default function MapView() {
     });
   }, [logs]);
 
+  useEffect(() => {
+    if (!customersLayerRef.current) return;
+    customersLayerRef.current.clearLayers();
+    if (!showSocialProof) return;
+    wonCustomers.forEach((c) => {
+      L.marker([c.lat, c.lng], { icon: houseIcon() })
+        .bindPopup(
+          `<b>${c.name}</b><br>${c.service_type || "Completed job"}<br><span style="color:#2F8F4E">✓ Happy customer nearby</span>`
+        )
+        .addTo(customersLayerRef.current!);
+    });
+  }, [wonCustomers, showSocialProof]);
+
   async function loadLogs() {
     const { data } = await supabase
       .from("door_logs")
@@ -141,6 +176,17 @@ export default function MapView() {
       .order("created_at", { ascending: false })
       .limit(500);
     setLogs(data ?? []);
+  }
+
+  async function loadWonCustomers() {
+    const { data } = await supabase
+      .from("customers")
+      .select("id, name, service_type, lat, lng")
+      .eq("status", "Won")
+      .not("lat", "is", null)
+      .not("lng", "is", null)
+      .limit(500);
+    setWonCustomers((data ?? []) as WonCustomer[]);
   }
 
   function startLoggingGps() {
@@ -216,6 +262,16 @@ export default function MapView() {
             {o.key}
           </span>
         ))}
+        <label className="flex items-center gap-1.5 ml-auto cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showSocialProof}
+            onChange={(e) => setShowSocialProof(e.target.checked)}
+            className="w-3.5 h-3.5"
+          />
+          <span className="w-2.5 h-2.5 rounded bg-steel inline-block" />
+          Happy customers ({wonCustomers.length})
+        </label>
       </div>
 
       {showAddressSearch && (
@@ -231,10 +287,10 @@ export default function MapView() {
 
       <div className="relative">
         <div ref={mapElRef} className="h-[calc(100vh-320px)] min-h-[340px] w-full" />
-        <p className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] bg-black/60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full">
-          Tap and hold a spot on the map to log a door there
+        <p className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] bg-black/70 text-white text-[10px] font-semibold px-3 py-1.5 rounded-full max-w-[85%] text-center pointer-events-none whitespace-nowrap">
+          Tap &amp; hold the map to log a door
         </p>
-        <div className="absolute right-4 bottom-4 z-[400] flex flex-col gap-2 items-end">
+        <div className="absolute right-3 bottom-8 z-[400] flex flex-col gap-2 items-end">
           <button
             onClick={() => setShowAddressSearch((v) => !v)}
             className="bg-white border border-line text-ink font-bold text-xs rounded-full px-4 py-2.5 shadow-lg"
