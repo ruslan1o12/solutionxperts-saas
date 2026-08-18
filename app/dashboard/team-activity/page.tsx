@@ -2,12 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-
-function hoursBetween(start: string | null, end: string | null) {
-  if (!start || !end) return null;
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  return (ms / 3600000).toFixed(1);
-}
+import DayLogRow from "./day-log-row";
 
 export default async function TeamActivityPage() {
   const { role } = await getCurrentProfile();
@@ -56,27 +51,7 @@ export default async function TeamActivityPage() {
 
       <div className="flex flex-col gap-2">
         {list.map((d) => (
-          <div key={d.id} className="bg-white border border-line rounded-2xl p-4">
-            <div className="flex justify-between items-start mb-1">
-              <div>
-                <div className="font-bold">{nameFor(d.user_id)}</div>
-                <div className="text-xs text-neutral-500">{d.work_date}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-bold">
-                  {d.started_at && d.ended_at
-                    ? `${hoursBetween(d.started_at, d.ended_at)} hrs`
-                    : d.started_at
-                    ? "In progress"
-                    : "Not started"}
-                </div>
-                {d.doors_knocked != null && (
-                  <div className="text-xs text-neutral-500">{d.doors_knocked} doors</div>
-                )}
-              </div>
-            </div>
-            {d.notes && <div className="text-sm text-neutral-600 mt-1">{d.notes}</div>}
-          </div>
+          <DayLogRow key={d.id} day={d} name={nameFor(d.user_id)} />
         ))}
       </div>
     </div>

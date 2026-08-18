@@ -162,6 +162,18 @@ insert into storage.buckets (id, name, public)
 values ('branding', 'branding', true)
 on conflict (id) do nothing;
 
+create table if not exists public.territories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  color text default '#2B4C6F',
+  points jsonb not null default '[]', -- [{lat, lng}, ...] polygon vertices
+  assigned_to uuid references auth.users(id),
+  scheduled_date date,
+  status text not null default 'Not Started', -- Not Started | In Progress | Completed
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
 create table if not exists public.expenses (
   id uuid primary key default gen_random_uuid(),
   expense_date date not null default current_date,
@@ -205,6 +217,7 @@ alter table public.rate_card enable row level security;
 alter table public.work_days enable row level security;
 alter table public.job_photos enable row level security;
 alter table public.expenses enable row level security;
+alter table public.territories enable row level security;
 alter table public.business_settings enable row level security;
 alter table public.notifications enable row level security;
 alter table public.messages enable row level security;
@@ -288,13 +301,40 @@ create policy "rate card admin write" on public.rate_card for all using (
 );
 
 -- Work days: everyone manages their own day log; admins/salesmen can also read
--- everyone's, for the Team Activity report.
+-- everyone's, for the Team Activity report; admins can also EDIT anyone's (to fix
+-- a missed clock-out, correct a door count, etc).
 drop policy if exists "own day log" on public.work_days;
 create policy "own day log" on public.work_days for all using (user_id = auth.uid())
   with check (user_id = auth.uid());
 drop policy if exists "office read all day logs" on public.work_days;
 create policy "office read all day logs" on public.work_days for select using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','salesman'))
+);
+drop policy if exists "admin edit all day logs" on public.work_days;
+create policy "admin edit all day logs" on public.work_days for update using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "admin delete all day logs" on public.work_days;
+create policy "admin delete all day logs" on public.work_days for delete using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Territories: admins and salesmen can create/manage; everyone signed in can read
+-- (a technician should be able to see the area they're scheduled to knock).
+drop policy if exists "territories read" on public.territories;
+create policy "territories read" on public.territories for select using (auth.role() = 'authenticated');
+drop policy if exists "territories office write" on public.territories;
+create policy "territories office write" on public.territories for insert with check (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','salesman'))
+);
+drop policy if exists "territories office update" on public.territories;
+create policy "territories office update" on public.territories for update using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin','salesman'))
+  or assigned_to = auth.uid()
+);
+drop policy if exists "territories admin delete" on public.territories;
+create policy "territories admin delete" on public.territories for delete using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 
 -- Job photos: anyone signed in can upload (technicians included); admins can read
