@@ -30,7 +30,7 @@ export default function AddressSearch({
       setLoading(true);
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=5&q=${encodeURIComponent(value)}`
+          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=6&countrycodes=ca&viewbox=-81.45,43.10,-80.95,42.85&bounded=0&q=${encodeURIComponent(value)}`
         );
         const data = await res.json();
         setResults(
@@ -64,7 +64,7 @@ export default function AddressSearch({
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">...</span>
       )}
       {open && results.length > 0 && (
-        <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-line rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+        <div className="absolute z-[2000] left-0 right-0 mt-1 bg-white border border-line rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
           {results.map((r, i) => (
             <button
               key={i}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import JobActions from "./job-actions";
 import JobPhotoGallery from "./job-photo-gallery";
 import ResendNotifyButton from "./resend-notify-button";
+import DeleteJobButton from "./delete-job-button";
 
 const STATUS_LABEL_COLOR: Record<string, string> = {
   Scheduled: "text-steel",
@@ -78,6 +79,8 @@ export default async function JobDetailPage({
       {(role === "admin" || role === "salesman") && <ResendNotifyButton jobId={id} />}
 
       {role === "admin" && <JobPhotoGallery jobId={id} />}
+
+      {role === "admin" && <DeleteJobButton jobId={id} />}
     </div>
   );
 }

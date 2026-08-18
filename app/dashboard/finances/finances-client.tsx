@@ -86,6 +86,13 @@ export default function FinancesClient() {
     load();
   }
 
+  async function updateExpenseField(id: string, field: keyof Expense, value: string) {
+    const payload =
+      field === "amount" ? { amount: Number(value) || 0 } : { [field]: value };
+    await supabase.from("expenses").update(payload).eq("id", id);
+    load();
+  }
+
   function exportCsv() {
     downloadCsv(
       `expenses-${new Date().toISOString().slice(0, 10)}`,
@@ -198,19 +205,37 @@ export default function FinancesClient() {
 
           <div className="flex flex-col gap-2">
             {expenses.map((e) => (
-              <div key={e.id} className="bg-white border border-line rounded-xl p-3 flex justify-between items-center">
-                <div>
-                  <div className="font-bold text-sm">{e.category}</div>
-                  <div className="text-xs text-neutral-500">
-                    {e.expense_date} {e.notes ? `· ${e.notes}` : ""}
-                  </div>
+              <div key={e.id} className="bg-white border border-line rounded-xl p-3">
+                <div className="grid grid-cols-[1fr_90px] gap-2 mb-1.5">
+                  <input
+                    defaultValue={e.category}
+                    onBlur={(ev) => updateExpenseField(e.id, "category", ev.target.value)}
+                    className="font-bold text-sm border-b border-transparent focus:border-line outline-none py-0.5"
+                  />
+                  <input
+                    defaultValue={e.amount}
+                    onBlur={(ev) => updateExpenseField(e.id, "amount", ev.target.value)}
+                    inputMode="decimal"
+                    className="font-bold text-sm text-right border-b border-transparent focus:border-line outline-none py-0.5"
+                  />
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-sm">${Number(e.amount).toFixed(2)}</span>
-                  <button onClick={() => deleteExpense(e.id)} className="text-danger text-xs font-bold">
-                    Delete
-                  </button>
+                <div className="grid grid-cols-[110px_1fr] gap-2 items-center">
+                  <input
+                    type="date"
+                    defaultValue={e.expense_date}
+                    onBlur={(ev) => updateExpenseField(e.id, "expense_date", ev.target.value)}
+                    className="text-xs text-neutral-500 border-b border-transparent focus:border-line outline-none py-0.5"
+                  />
+                  <input
+                    defaultValue={e.notes ?? ""}
+                    placeholder="Notes"
+                    onBlur={(ev) => updateExpenseField(e.id, "notes", ev.target.value)}
+                    className="text-xs text-neutral-500 border-b border-transparent focus:border-line outline-none py-0.5"
+                  />
                 </div>
+                <button onClick={() => deleteExpense(e.id)} className="text-danger text-xs font-bold mt-1.5">
+                  Delete
+                </button>
               </div>
             ))}
           </div>

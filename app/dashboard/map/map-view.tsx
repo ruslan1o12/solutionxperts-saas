@@ -53,8 +53,7 @@ function houseIcon() {
   });
 }
 
-const LONG_PRESS_MS = 550;
-const MOVE_CANCEL_PX = 12;
+
 
 export default function MapView() {
   const supabase = createClient();
@@ -62,8 +61,8 @@ export default function MapView() {
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const customersLayerRef = useRef<L.LayerGroup | null>(null);
-  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const streetLayerRef = useRef<L.TileLayer | null>(null);
+  const satelliteLayerRef = useRef<L.TileLayer | null>(null);
 
   const [logs, setLogs] = useState<DoorLog[]>([]);
   const [wonCustomers, setWonCustomers] = useState<WonCustomer[]>([]);
@@ -76,15 +75,22 @@ export default function MapView() {
   const [error, setError] = useState<string | null>(null);
   const [addressQuery, setAddressQuery] = useState("");
   const [showAddressSearch, setShowAddressSearch] = useState(false);
+  const [layerMode, setLayerMode] = useState<"street" | "satellite">("street");
 
   useEffect(() => {
     if (mapRef.current || !mapElRef.current) return;
 
     const map = L.map(mapElRef.current, { attributionControl: false }).setView([42.9834, -81.233], 12);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+
+    streetLayerRef.current = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
     }).addTo(map);
-    L.control.attribution({ position: "bottomleft", prefix: false }).addAttribution("© OpenStreetMap").addTo(map);
+    satelliteLayerRef.current = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom: 19 }
+    );
+
+    L.control.attribution({ position: "bottomleft", prefix: false }).addAttribution("© OpenStreetMap, Esri").addTo(map);
     markersLayerRef.current = L.layerGroup().addTo(map);
     customersLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -94,48 +100,24 @@ export default function MapView() {
       () => {}
     );
 
-    // Long-press (tap and hold) on the map to manually log a door at that spot
-    function startPress(e: L.LeafletMouseEvent) {
-      pressStartRef.current = { x: e.containerPoint.x, y: e.containerPoint.y };
-      pressTimerRef.current = setTimeout(() => {
-        map.dragging.disable();
-        setPendingLabel(null);
-        setPendingCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
-        setSelectedOutcome(null);
-        setNote("");
-        pressTimerRef.current = null;
-        setTimeout(() => map.dragging.enable(), 100);
-      }, LONG_PRESS_MS);
+    // Long-press (mobile) or right-click (desktop) to manually log a door at that spot.
+    // Leaflet fires "contextmenu" for both — far more reliable than hand-rolling a
+    // press timer, which was cancelled by Leaflet's own drag detection on any tiny
+    // finger jitter before it ever finished.
+    function handleLongPress(e: L.LeafletMouseEvent) {
+      if (e.originalEvent) e.originalEvent.preventDefault();
+      setPendingLabel(null);
+      setPendingCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
+      setSelectedOutcome(null);
+      setNote("");
     }
-    function movePress(e: L.LeafletMouseEvent) {
-      if (!pressTimerRef.current || !pressStartRef.current) return;
-      const dx = e.containerPoint.x - pressStartRef.current.x;
-      const dy = e.containerPoint.y - pressStartRef.current.y;
-      if (Math.sqrt(dx * dx + dy * dy) > MOVE_CANCEL_PX) {
-        clearTimeout(pressTimerRef.current);
-        pressTimerRef.current = null;
-      }
-    }
-    function endPress() {
-      if (pressTimerRef.current) {
-        clearTimeout(pressTimerRef.current);
-        pressTimerRef.current = null;
-      }
-    }
-
-    map.on("mousedown", startPress);
-    map.on("mousemove", movePress);
-    map.on("mouseup", endPress);
-    map.on("dragstart", endPress);
+    map.on("contextmenu", handleLongPress);
 
     loadLogs();
     loadWonCustomers();
 
     return () => {
-      map.off("mousedown", startPress);
-      map.off("mousemove", movePress);
-      map.off("mouseup", endPress);
-      map.off("dragstart", endPress);
+      map.off("contextmenu", handleLongPress);
       map.remove();
       mapRef.current = null;
     };
@@ -187,6 +169,19 @@ export default function MapView() {
       .not("lng", "is", null)
       .limit(500);
     setWonCustomers((data ?? []) as WonCustomer[]);
+  }
+
+  function toggleLayer() {
+    if (!mapRef.current || !streetLayerRef.current || !satelliteLayerRef.current) return;
+    if (layerMode === "street") {
+      mapRef.current.removeLayer(streetLayerRef.current);
+      satelliteLayerRef.current.addTo(mapRef.current);
+      setLayerMode("satellite");
+    } else {
+      mapRef.current.removeLayer(satelliteLayerRef.current);
+      streetLayerRef.current.addTo(mapRef.current);
+      setLayerMode("street");
+    }
   }
 
   function startLoggingGps() {
@@ -290,6 +285,14 @@ export default function MapView() {
         <p className="absolute top-3 left-1/2 -translate-x-1/2 z-[400] bg-black/70 text-white text-[10px] font-semibold px-3 py-1.5 rounded-full max-w-[85%] text-center pointer-events-none whitespace-nowrap">
           Tap &amp; hold the map to log a door
         </p>
+        <div className="absolute right-3 top-3 z-[400]">
+          <button
+            onClick={toggleLayer}
+            className="bg-white border border-line text-ink font-bold text-xs rounded-full px-3 py-2 shadow-lg"
+          >
+            {layerMode === "street" ? "🛰️ Satellite" : "🗺️ Streets"}
+          </button>
+        </div>
         <div className="absolute right-3 bottom-8 z-[400] flex flex-col gap-2 items-end">
           <button
             onClick={() => setShowAddressSearch((v) => !v)}
