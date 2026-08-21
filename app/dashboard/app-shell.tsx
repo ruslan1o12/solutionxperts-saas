@@ -49,7 +49,8 @@ export default function AppShell({
     { href: "/dashboard", label: "Overview", icon: "grid" },
     { href: "/dashboard/customers", label: "Customers", icon: "users" },
     { href: "/dashboard/invoices", label: "Invoices", icon: "invoice" },
-  ];
+    isAdmin && { href: "/dashboard/finances", label: "Finances", icon: "cash" },
+  ].filter(Boolean) as NavItem[];
 
   const settingsLink: NavItem = { href: "/dashboard/settings", label: "Settings", icon: "gear" };
 

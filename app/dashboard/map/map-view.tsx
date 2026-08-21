@@ -34,6 +34,7 @@ type Territory = {
 };
 
 type Option = { id: string; label: string };
+type TeamLocation = { user_id: string; lat: number; lng: number; updated_at: string; name: string };
 
 const OUTCOMES = [
   { key: "Answered - Interested", color: "#3A7D44" },
@@ -84,6 +85,15 @@ function meIcon() {
   });
 }
 
+function teamMemberIcon(initial: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:26px;height:26px;border-radius:50%;background:#FF6B1A;border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:800;">${initial}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  });
+}
+
 function vertexIcon() {
   return L.divIcon({
     className: "",
@@ -100,6 +110,7 @@ export default function MapView() {
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const customersLayerRef = useRef<L.LayerGroup | null>(null);
   const territoriesLayerRef = useRef<L.LayerGroup | null>(null);
+  const teamLocationsLayerRef = useRef<L.LayerGroup | null>(null);
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const meMarkerRef = useRef<L.Marker | null>(null);
   const streetLayerRef = useRef<L.TileLayer | null>(null);
@@ -129,6 +140,8 @@ export default function MapView() {
   const [teamOptions, setTeamOptions] = useState<Option[]>([]);
   const [drawMode, setDrawMode] = useState(false);
   const [drawPointCount, setDrawPointCount] = useState(0);
+  const [teamLocations, setTeamLocations] = useState<TeamLocation[]>([]);
+  const [showTeamLocations, setShowTeamLocations] = useState(true);
   const [territoryForm, setTerritoryForm] = useState<{ points: { lat: number; lng: number }[] } | null>(null);
   const [territoryName, setTerritoryName] = useState("");
   const [territoryColor, setTerritoryColor] = useState("#2B4C6F");
@@ -160,6 +173,68 @@ export default function MapView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Broadcast a rough "last known location" every ~30s while this page is
+  // open, so admins can see where the team is without needing "follow me" on.
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    let cancelled = false;
+
+    function broadcast() {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          if (cancelled) return;
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+          if (!user) return;
+          await supabase.from("user_locations").upsert({
+            user_id: user.id,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            updated_at: new Date().toISOString(),
+          });
+        },
+        () => {},
+        { enableHighAccuracy: false, maximumAge: 60000, timeout: 10000 }
+      );
+    }
+
+    broadcast();
+    const interval = setInterval(broadcast, 30000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Admin-only: poll everyone else's last known location.
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    async function loadTeamLocations() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const [{ data: locations }, { data: profiles }] = await Promise.all([
+        supabase.from("user_locations").select("*"),
+        supabase.from("profiles").select("id, full_name"),
+      ]);
+      const nameById: Record<string, string> = {};
+      (profiles ?? []).forEach((p) => (nameById[p.id] = p.full_name || "Team member"));
+      setTeamLocations(
+        (locations ?? [])
+          .filter((l) => l.user_id !== user?.id)
+          .map((l) => ({ ...l, name: nameById[l.user_id] || "Team member" }))
+      );
+    }
+
+    loadTeamLocations();
+    const interval = setInterval(loadTeamLocations, 25000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
   useEffect(() => {
     if (mapRef.current || !mapElRef.current) return;
 
@@ -177,6 +252,7 @@ export default function MapView() {
     markersLayerRef.current = L.layerGroup().addTo(map);
     customersLayerRef.current = L.layerGroup().addTo(map);
     territoriesLayerRef.current = L.layerGroup().addTo(map);
+    teamLocationsLayerRef.current = L.layerGroup().addTo(map);
     drawLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
 
@@ -373,6 +449,21 @@ export default function MapView() {
     });
   }, [territories, showTerritories, teamOptions, isAdmin]);
 
+  useEffect(() => {
+    if (!teamLocationsLayerRef.current) return;
+    teamLocationsLayerRef.current.clearLayers();
+    if (!isAdmin || !showTeamLocations) return;
+    teamLocations.forEach((loc) => {
+      const minsAgo = Math.round((Date.now() - new Date(loc.updated_at).getTime()) / 60000);
+      const initial = loc.name.charAt(0).toUpperCase();
+      L.marker([loc.lat, loc.lng], { icon: teamMemberIcon(initial), zIndexOffset: 900 })
+        .bindPopup(
+          `<b>${loc.name}</b><br>Last seen ${minsAgo < 1 ? "just now" : `${minsAgo} min ago`}`
+        )
+        .addTo(teamLocationsLayerRef.current!);
+    });
+  }, [teamLocations, showTeamLocations, isAdmin]);
+
   async function loadLogs() {
     const { data } = await supabase
       .from("door_logs")
@@ -386,7 +477,7 @@ export default function MapView() {
     const { data } = await supabase
       .from("customers")
       .select("id, name, service_type, lat, lng")
-      .eq("status", "Won")
+      .eq("status", "Done")
       .not("lat", "is", null)
       .not("lng", "is", null)
       .limit(500);
@@ -561,6 +652,18 @@ export default function MapView() {
           />
           Areas ({territories.length})
         </label>
+        {isAdmin && (
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showTeamLocations}
+              onChange={(e) => setShowTeamLocations(e.target.checked)}
+              className="w-3.5 h-3.5"
+            />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B1A] inline-block" />
+            Team ({teamLocations.length})
+          </label>
+        )}
       </div>
 
       {showAddressSearch && (

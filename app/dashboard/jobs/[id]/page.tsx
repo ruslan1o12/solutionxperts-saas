@@ -67,12 +67,20 @@ export default async function JobDetailPage({
         <div className="flex items-start justify-between">
           <div className="text-xl font-extrabold">{job.customers?.name ?? "Customer"}</div>
           {(role === "admin" || role === "salesman") && (
-            <Link
-              href={`/dashboard/jobs/${id}/edit`}
-              className="text-steel font-bold text-xs bg-white border border-line rounded-lg px-3 py-1.5 whitespace-nowrap"
-            >
-              Edit job
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                href={`/dashboard/customers/${job.customer_id}/edit`}
+                className="text-steel font-bold text-xs bg-white border border-line rounded-lg px-3 py-1.5 whitespace-nowrap"
+              >
+                Edit customer
+              </Link>
+              <Link
+                href={`/dashboard/jobs/${id}/edit`}
+                className="text-steel font-bold text-xs bg-white border border-line rounded-lg px-3 py-1.5 whitespace-nowrap"
+              >
+                Edit job
+              </Link>
+            </div>
           )}
         </div>
         {job.customers?.address && (

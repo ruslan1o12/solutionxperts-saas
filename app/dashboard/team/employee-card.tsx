@@ -38,6 +38,36 @@ export default function EmployeeCard({
   const [payRate, setPayRate] = useState(profile.pay_rate?.toString() ?? "0");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function deleteEmployee() {
+    if (
+      !confirm(
+        `Remove ${profile.full_name || "this person"}'s login? They won't be able to sign in anymore. This can't be undone.`
+      )
+    )
+      return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/delete-employee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: profile.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.error || "Couldn't remove this employee.");
+        setDeleting(false);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setDeleteError("Couldn't remove this employee.");
+      setDeleting(false);
+    }
+  }
 
   async function saveField(field: "full_name" | "phone", value: string) {
     setSaving(true);
@@ -172,6 +202,19 @@ export default function EmployeeCard({
           </div>
         </div>
       </div>
+
+      {!isSelf && (
+        <div className="mt-3 pt-3 border-t border-line">
+          {deleteError && <p className="text-danger text-xs mb-2">{deleteError}</p>}
+          <button
+            onClick={deleteEmployee}
+            disabled={deleting}
+            className="text-danger text-xs font-bold disabled:opacity-60"
+          >
+            {deleting ? "Removing..." : "Remove employee login"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

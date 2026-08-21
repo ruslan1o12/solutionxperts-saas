@@ -20,8 +20,8 @@ export default async function OverviewPage() {
   const allQuotes = quotes ?? [];
   const allDoors = doorLogs ?? [];
 
-  const active = allCustomers.filter((c) => c.status !== "Won" && c.status !== "Lost").length;
-  const won = allCustomers.filter((c) => c.status === "Won").length;
+  const active = allCustomers.filter((c) => c.status !== "Done" && c.status !== "Lost").length;
+  const won = allCustomers.filter((c) => c.status === "Done").length;
   const pipelineValue = allQuotes
     .filter((q) => q.status !== "Paid")
     .reduce((sum, q) => sum + Number(q.total || 0), 0);
@@ -48,7 +48,7 @@ export default async function OverviewPage() {
       <SectionLabel>This week</SectionLabel>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         <Stat label="Active customers" value={active} icon="users" color="#2B4C6F" />
-        <Stat label="Won" value={won} icon="check" color="#2F8F4E" />
+        <Stat label="Done" value={won} icon="check" color="#2F8F4E" />
         <Stat label="Doors knocked" value={doorsThisWeek} icon="door" color="#3D8B4C" />
         <Stat label="Interested" value={interestedThisWeek} icon="spark" color="#B45F0A" />
       </div>

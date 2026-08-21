@@ -33,6 +33,7 @@ export default function FinancesClient() {
   const [range, setRange] = useState<RangeKey>("month");
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [revenue, setRevenue] = useState(0);
+  const [upcomingBalance, setUpcomingBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [category, setCategory] = useState("");
@@ -51,9 +52,18 @@ export default function FinancesClient() {
     let revQuery = supabase.from("quotes").select("total, paid_at").eq("status", "Paid");
     if (start) revQuery = revQuery.gte("paid_at", start);
 
-    const [{ data: exp }, { data: rev }] = await Promise.all([expQuery, revQuery]);
+    // Upcoming balance isn't scoped to the date range — it's what's owed right
+    // now, regardless of when the invoice was originally sent.
+    const upcomingQuery = supabase.from("quotes").select("total").neq("status", "Paid");
+
+    const [{ data: exp }, { data: rev }, { data: upcoming }] = await Promise.all([
+      expQuery,
+      revQuery,
+      upcomingQuery,
+    ]);
     setExpenses(exp ?? []);
     setRevenue((rev ?? []).reduce((s, r) => s + Number(r.total || 0), 0));
+    setUpcomingBalance((upcoming ?? []).reduce((s, q) => s + Number(q.total || 0), 0));
     setLoading(false);
   }
 
@@ -133,10 +143,14 @@ export default function FinancesClient() {
         <CardSkeleton rows={3} />
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
             <div className="bg-white border border-line rounded-2xl p-3 text-center">
               <div className="text-lg font-extrabold text-good">$<AnimatedNumber value={Math.round(revenue)} /></div>
               <div className="text-[10px] font-semibold text-neutral-500 uppercase">Revenue</div>
+            </div>
+            <div className="bg-white border border-line rounded-2xl p-3 text-center">
+              <div className="text-lg font-extrabold text-[#B45F0A]">$<AnimatedNumber value={Math.round(upcomingBalance)} /></div>
+              <div className="text-[10px] font-semibold text-neutral-500 uppercase">Upcoming balance</div>
             </div>
             <div className="bg-white border border-line rounded-2xl p-3 text-center">
               <div className="text-lg font-extrabold text-danger">$<AnimatedNumber value={Math.round(totalExpenses)} /></div>
@@ -149,6 +163,9 @@ export default function FinancesClient() {
               <div className="text-[10px] font-semibold text-neutral-500 uppercase">Net profit</div>
             </div>
           </div>
+          <p className="text-xs text-neutral-500 -mt-4 mb-6">
+            Upcoming balance is what&apos;s owed right now across every unpaid invoice — it isn&apos;t limited to the date range above.
+          </p>
 
           <div className="bg-white border border-line rounded-2xl p-4 mb-6">
             <div className="text-xs font-extrabold uppercase tracking-wide text-steel mb-3">

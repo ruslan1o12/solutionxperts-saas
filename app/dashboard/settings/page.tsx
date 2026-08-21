@@ -29,11 +29,6 @@ const SECTIONS = [
     desc: "Logo, font, and color scheme for the whole site.",
   },
   {
-    href: "/dashboard/finances",
-    title: "Finances",
-    desc: "Revenue, expenses, and net profit.",
-  },
-  {
     href: "/dashboard/team-activity",
     title: "Team activity",
     desc: "Hours worked and doors knocked, by person.",

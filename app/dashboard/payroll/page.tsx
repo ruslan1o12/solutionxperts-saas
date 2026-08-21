@@ -14,7 +14,7 @@ export default async function PayrollPage() {
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
   const rangeStart = ninetyDaysAgo.toISOString().slice(0, 10);
 
-  const [{ data: profiles }, { data: paidQuotes }, { data: completedJobs }, { data: workDays }] =
+  const [{ data: profiles }, { data: paidQuotes }, { data: completedJobs }, { data: workDays }, { data: settings }] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -29,7 +29,11 @@ export default async function PayrollPage() {
         .select("id, assigned_to, completed_at, quotes(total)")
         .eq("status", "Completed")
         .gte("completed_at", rangeStart),
-      supabase.from("work_days").select("user_id, work_date, started_at, ended_at").gte("work_date", rangeStart),
+      supabase
+        .from("work_days")
+        .select("user_id, work_date, started_at, ended_at, is_driver")
+        .gte("work_date", rangeStart),
+      supabase.from("business_settings").select("driver_day_rate").eq("id", 1).single(),
     ]);
 
   return (
@@ -48,6 +52,7 @@ export default async function PayrollPage() {
         paidQuotes={paidQuotes ?? []}
         completedJobs={completedJobs ?? []}
         workDays={workDays ?? []}
+        initialDriverRate={settings?.driver_day_rate ?? 0}
       />
     </div>
   );

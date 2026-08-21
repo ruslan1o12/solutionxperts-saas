@@ -126,6 +126,37 @@ select * from (values
 ) as v(service_name, unit, low_price, high_price, notes)
 where not exists (select 1 from public.rate_card);
 
+-- Recalibrated to realistic Ontario, Canada small-contractor pricing (was
+-- generic placeholder numbers). Only updates rows that still have their
+-- original default name/price — if you've already customized these in
+-- Settings → Rate Card, your numbers are left alone.
+update public.rate_card set unit = 'hour', low_price = 65, high_price = 95,
+  notes = 'General repairs, no specialty materials'
+where service_name = 'Handyman labor' and low_price = 55 and high_price = 85;
+
+update public.rate_card set service_name = 'House cleaning (interior)', unit = 'sqft',
+  low_price = 0.10, high_price = 0.20, notes = 'Standard residential clean, per visit'
+where service_name = 'Interior/exterior cleaning' and low_price = 0.15 and high_price = 0.35;
+
+update public.rate_card set unit = 'sqft', low_price = 12, high_price = 25,
+  notes = 'Cold patch to hot mix depending on depth and traffic load'
+where service_name = 'Pothole repair' and low_price = 8 and high_price = 18;
+
+update public.rate_card set unit = 'sqft', low_price = 0.20, high_price = 0.40,
+  notes = 'Sealcoating and minor patch resurfacing, not full asphalt overlay'
+where service_name = 'Road/lot resurfacing' and low_price = 2.50 and high_price = 5.50;
+
+-- New services — added by exact name if not already present, so this is safe
+-- to run again without duplicating anything you've already added yourself.
+insert into public.rate_card (service_name, unit, low_price, high_price, notes)
+select * from (values
+  ('Window cleaning (in & out)', 'window', 8, 15, 'Standard residential double-hung window, both sides'),
+  ('Pressure washing', 'sqft', 0.25, 0.45, 'Driveway, patio, or siding — concrete costs more than wood/vinyl'),
+  ('Gutter cleaning (interior)', 'linear ft', 1.50, 3.00, 'Debris removal and flush, single story — add for 2nd story or heavy buildup'),
+  ('Gutter cleaning (exterior/brightening)', 'linear ft', 1.00, 2.00, 'Oxidation and streak removal on the outside face of gutters')
+) as v(service_name, unit, low_price, high_price, notes)
+where not exists (select 1 from public.rate_card r where r.service_name = v.service_name);
+
 create table if not exists public.work_days (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) not null,
@@ -213,6 +244,13 @@ insert into storage.buckets (id, name, public)
 values ('branding', 'branding', true)
 on conflict (id) do nothing;
 
+create table if not exists public.user_locations (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  lat double precision not null,
+  lng double precision not null,
+  updated_at timestamptz default now()
+);
+
 create table if not exists public.territories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -247,6 +285,7 @@ create table if not exists public.business_settings (
   constraint single_row check (id = 1)
 );
 insert into public.business_settings (id) values (1) on conflict (id) do nothing;
+alter table public.business_settings add column if not exists driver_day_rate numeric default 0;
 
 create table if not exists public.email_settings (
   id int primary key default 1,
@@ -286,6 +325,7 @@ alter table public.work_days enable row level security;
 alter table public.job_photos enable row level security;
 alter table public.expenses enable row level security;
 alter table public.territories enable row level security;
+alter table public.user_locations enable row level security;
 alter table public.business_settings enable row level security;
 alter table public.notifications enable row level security;
 alter table public.messages enable row level security;
@@ -405,6 +445,17 @@ create policy "territories office update" on public.territories for update using
 );
 drop policy if exists "territories admin delete" on public.territories;
 create policy "territories admin delete" on public.territories for delete using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- User locations: everyone can upsert their OWN last-known spot; only admins
+-- can see everyone's (matches "can only be viewed as an admin").
+drop policy if exists "user locations own upsert" on public.user_locations;
+create policy "user locations own upsert" on public.user_locations for all using (
+  user_id = auth.uid()
+) with check (user_id = auth.uid());
+drop policy if exists "user locations admin read" on public.user_locations;
+create policy "user locations admin read" on public.user_locations for select using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 
@@ -595,3 +646,53 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
+
+-- Deleting an employee's login should never be blocked by their history in the
+-- app, and it shouldn't erase real business records either — a customer, job,
+-- or quote they created stays on the books, it just no longer points at a
+-- valid user. Rows that are ONLY meaningful in relation to that specific user
+-- (their day logs, their notifications) get removed with them instead.
+do $$
+declare
+  r record;
+begin
+  for r in (values
+    ('public.customers', 'created_by'),
+    ('public.customer_notes', 'created_by'),
+    ('public.door_logs', 'created_by'),
+    ('public.quotes', 'created_by'),
+    ('public.quotes', 'salesman_id'),
+    ('public.jobs', 'created_by'),
+    ('public.jobs', 'assigned_to'),
+    ('public.jobs', 'sold_by'),
+    ('public.rate_card', 'created_by'),
+    ('public.job_photos', 'uploaded_by'),
+    ('public.messages', 'sender_id'),
+    ('public.territories', 'created_by'),
+    ('public.territories', 'assigned_to'),
+    ('public.expenses', 'created_by')
+  ) loop
+    execute format(
+      'alter table %s drop constraint if exists %s',
+      r.column1,
+      replace(r.column1, 'public.', '') || '_' || r.column2 || '_fkey'
+    );
+    execute format(
+      'alter table %s add constraint %s foreign key (%s) references auth.users(id) on delete set null',
+      r.column1,
+      replace(r.column1, 'public.', '') || '_' || r.column2 || '_fkey',
+      r.column2
+    );
+  end loop;
+end $$;
+
+-- These only make sense tied to a specific person, so remove them with the user.
+alter table public.notifications drop constraint if exists notifications_recipient_id_fkey;
+alter table public.notifications
+  add constraint notifications_recipient_id_fkey
+  foreign key (recipient_id) references auth.users(id) on delete cascade;
+
+alter table public.work_days drop constraint if exists work_days_user_id_fkey;
+alter table public.work_days
+  add constraint work_days_user_id_fkey
+  foreign key (user_id) references auth.users(id) on delete cascade;

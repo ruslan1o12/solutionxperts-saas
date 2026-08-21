@@ -19,7 +19,7 @@ const PILL: Record<string, string> = {
   New: "bg-[#E7EEF5] text-steel",
   Contacted: "bg-[#FFF1DF] text-[#8A5A17]",
   Quoted: "bg-[#FFE9CC] text-[#B45F0A]",
-  Won: "bg-[#E4F1E5] text-good",
+  Done: "bg-[#E4F1E5] text-good",
   Lost: "bg-[#F1E7E6] text-neutral-500",
 };
 

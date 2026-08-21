@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-const STATUSES = ["New", "Contacted", "Quoted", "Won", "Lost"];
+const STATUSES = ["New", "Contacted", "Quoted", "Done", "Lost"];
 
 export default function StatusEditor({
   customerId,
