@@ -161,6 +161,27 @@ create table if not exists public.notifications (
   created_at timestamptz default now()
 );
 
+-- Conversations must exist before "messages" below, since messages references it.
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  name text,
+  is_group boolean default true,
+  is_general boolean default false,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
+-- The one always-on, all-hands channel. Fixed id so this insert is idempotent.
+insert into public.conversations (id, name, is_group, is_general, created_by)
+values ('00000000-0000-0000-0000-000000000001', 'General', true, true, null)
+on conflict (id) do nothing;
+
+create table if not exists public.conversation_participants (
+  conversation_id uuid references public.conversations(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  primary key (conversation_id, user_id)
+);
+
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid references public.conversations(id) on delete cascade,
@@ -243,26 +264,6 @@ alter table public.jobs add column if not exists completed_at timestamptz;
 -- Work days: track who was "driver for the day" — this is who gets job-completion
 -- notifications alongside admins, and shows up in the daily CSV export.
 alter table public.work_days add column if not exists is_driver boolean default false;
-
-create table if not exists public.conversations (
-  id uuid primary key default gen_random_uuid(),
-  name text,
-  is_group boolean default true,
-  is_general boolean default false,
-  created_by uuid references auth.users(id),
-  created_at timestamptz default now()
-);
-
--- The one always-on, all-hands channel. Fixed id so this insert is idempotent.
-insert into public.conversations (id, name, is_group, is_general, created_by)
-values ('00000000-0000-0000-0000-000000000001', 'General', true, true, null)
-on conflict (id) do nothing;
-
-create table if not exists public.conversation_participants (
-  conversation_id uuid references public.conversations(id) on delete cascade,
-  user_id uuid references auth.users(id) on delete cascade,
-  primary key (conversation_id, user_id)
-);
 
 -- Private storage bucket for before/after job photos (not publicly readable)
 insert into storage.buckets (id, name, public)

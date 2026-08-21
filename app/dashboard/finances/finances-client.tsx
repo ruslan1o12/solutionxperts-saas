@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { downloadCsv } from "@/lib/csv";
+import AnimatedNumber from "../animated-number";
+import CardSkeleton from "../card-skeleton";
 
 type Expense = {
   id: string;
@@ -128,21 +130,21 @@ export default function FinancesClient() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-neutral-400 text-center py-10">Loading...</p>
+        <CardSkeleton rows={3} />
       ) : (
         <>
           <div className="grid grid-cols-3 gap-2 mb-6">
             <div className="bg-white border border-line rounded-2xl p-3 text-center">
-              <div className="text-lg font-extrabold text-good">${revenue.toFixed(0)}</div>
+              <div className="text-lg font-extrabold text-good">$<AnimatedNumber value={Math.round(revenue)} /></div>
               <div className="text-[10px] font-semibold text-neutral-500 uppercase">Revenue</div>
             </div>
             <div className="bg-white border border-line rounded-2xl p-3 text-center">
-              <div className="text-lg font-extrabold text-danger">${totalExpenses.toFixed(0)}</div>
+              <div className="text-lg font-extrabold text-danger">$<AnimatedNumber value={Math.round(totalExpenses)} /></div>
               <div className="text-[10px] font-semibold text-neutral-500 uppercase">Expenses</div>
             </div>
             <div className="bg-white border border-line rounded-2xl p-3 text-center">
               <div className={`text-lg font-extrabold ${profit >= 0 ? "text-ink" : "text-danger"}`}>
-                ${profit.toFixed(0)}
+                $<AnimatedNumber value={Math.round(profit)} />
               </div>
               <div className="text-[10px] font-semibold text-neutral-500 uppercase">Net profit</div>
             </div>

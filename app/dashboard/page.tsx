@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import AnimatedNumber from "./animated-number";
 
 export default async function OverviewPage() {
   const { role, fullName } = await getCurrentProfile();
@@ -56,14 +57,18 @@ export default async function OverviewPage() {
       <div className="grid grid-cols-2 gap-3 mb-8 md:max-w-xl">
         <div className="bg-white border border-line rounded-2xl p-5 shadow-sm">
           <IconBadge icon="clock" color="#B45F0A" />
-          <div className="text-2xl font-extrabold mt-3">${pipelineValue.toFixed(0)}</div>
+          <div className="text-2xl font-extrabold mt-3">
+            $<AnimatedNumber value={Math.round(pipelineValue)} />
+          </div>
           <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
             Open quotes
           </div>
         </div>
         <div className="bg-white border border-line rounded-2xl p-5 shadow-sm">
           <IconBadge icon="cash" color="#2F8F4E" />
-          <div className="text-2xl font-extrabold mt-3 text-good">${paidValue.toFixed(0)}</div>
+          <div className="text-2xl font-extrabold mt-3 text-good">
+            $<AnimatedNumber value={Math.round(paidValue)} />
+          </div>
           <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
             Collected
           </div>
@@ -118,7 +123,9 @@ function Stat({
   return (
     <div className="bg-white border border-line rounded-2xl p-4 shadow-sm">
       <IconBadge icon={icon} color={color} />
-      <div className="text-2xl font-extrabold mt-3">{value}</div>
+      <div className="text-2xl font-extrabold mt-3">
+        <AnimatedNumber value={value} />
+      </div>
       <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wide">
         {label}
       </div>

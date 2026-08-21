@@ -127,7 +127,7 @@ export default function AppShell({
       <div className="hazard-strip sticky top-[68px] z-20 md:hidden" />
 
       <main className="flex-1 md:ml-64 pb-20 md:pb-10">
-        <div className="max-w-3xl md:max-w-6xl mx-auto px-4 md:px-8 pt-4 md:pt-8">{children}</div>
+        <div key={pathname} className="max-w-3xl md:max-w-6xl mx-auto px-4 md:px-8 pt-4 md:pt-8 page-enter">{children}</div>
       </main>
 
       {/* Mobile bottom tabs */}

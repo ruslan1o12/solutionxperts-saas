@@ -24,6 +24,64 @@ body {
 
 .hazard-strip {
   height: 5px;
-  background: linear-gradient(90deg, var(--color-ink) 0%, var(--color-signal) 50%, var(--color-mint) 100%);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--color-ink) 0 14px,
+    var(--color-signal) 14px 28px,
+    var(--color-mint) 28px 34px
+  );
+  background-size: 200% 100%;
+  animation: hazard-drift 14s linear infinite;
+}
+
+@keyframes hazard-drift {
+  from { background-position: 0% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* Global micro-interactions — buttons and interactive cards get a
+   consistent, understated press/lift feel instead of feeling static. */
+button, a {
+  transition: transform 0.12s ease, box-shadow 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+button:active {
+  transform: scale(0.97);
+}
+
+.rounded-2xl.border {
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+a.rounded-2xl.border:hover,
+button.rounded-2xl.border:hover {
+  box-shadow: 0 4px 16px rgba(27, 67, 50, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Page content entrance — subtle, not a "wow" moment, just settles in */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: fade-in-up 0.32s ease-out;
+}
+
+/* Skeleton loading shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #E8ECE6 25%, #F4F7F2 37%, #E8ECE6 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hazard-strip, .page-enter, .skeleton, button, a {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 

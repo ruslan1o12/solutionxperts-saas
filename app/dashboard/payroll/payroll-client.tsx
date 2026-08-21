@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { downloadCsv } from "@/lib/csv";
+import AnimatedNumber from "../animated-number";
 
 type Profile = {
   id: string;
@@ -131,7 +132,7 @@ export default function PayrollClient({
                 <div className="font-bold">{r.name}</div>
                 <div className="text-[11px] text-neutral-500 uppercase font-semibold">{r.role}</div>
               </div>
-              <div className="text-xl font-extrabold text-signal">${r.total.toFixed(2)}</div>
+              <div className="text-xl font-extrabold text-signal">$<AnimatedNumber value={Math.round(r.total)} /></div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs text-neutral-600">
               {r.salesCount > 0 && (

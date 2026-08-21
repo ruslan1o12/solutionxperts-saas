@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CardSkeleton from "../card-skeleton";
 
 type DoorEvent = { delta: 1 | -1; note: string; time: string };
 
@@ -163,7 +164,7 @@ export default function MyDayPage() {
     load();
   }
 
-  if (loading) return <p className="text-sm text-neutral-400 text-center py-10">Loading...</p>;
+  if (loading) return <CardSkeleton rows={2} />;
 
   const doorCount = events.reduce((s, e) => s + e.delta, 0);
 
