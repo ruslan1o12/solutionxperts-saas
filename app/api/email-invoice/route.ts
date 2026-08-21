@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
+import { getEmailSender } from "@/lib/getEmailSender";
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,14 +38,14 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.NOTIFY_FROM_EMAIL || "SolutionXperts <onboarding@resend.dev>",
+        from: await getEmailSender(),
         to: contact,
-        subject: `Invoice from ${businessName} — $${Number(quote.total).toFixed(2)}`,
-        html: `<p>Hi ${customer?.name || "there"},</p>
-               <p>Please find your invoice attached from <b>${businessName}</b>.</p>
-               <p>Total due: <b>$${Number(quote.total).toFixed(2)}</b>${quote.due_date ? ` by ${quote.due_date}` : ""}</p>
-               ${quote.stripe_payment_link ? `<p><a href="${quote.stripe_payment_link}">Pay online</a></p>` : ""}
-               <p>Thank you for your business.</p>`,
+        subject: `Your invoice from ${businessName} — $${Number(quote.total).toFixed(2)}`,
+        html: `<p>Hi ${customer?.name || "there"}!</p>
+               <p>Here's your invoice from ${businessName} — thanks again for choosing us.</p>
+               <p>Total: <b>$${Number(quote.total).toFixed(2)}</b>${quote.due_date ? ` (due by ${quote.due_date})` : ""}</p>
+               ${quote.stripe_payment_link ? `<p><a href="${quote.stripe_payment_link}">Pay online here</a></p>` : ""}
+               <p>Let us know if you have any questions — happy to help!</p>`,
         attachments: [
           {
             filename,

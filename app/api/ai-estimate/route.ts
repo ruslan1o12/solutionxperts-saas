@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-
-type RateCardItem = {
-  service_name: string;
-  unit: string;
-  low_price: number;
-  high_price: number;
-  notes: string | null;
-};
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { images, selectedServices, notes } = (await req.json()) as {
+    const { images, prompt } = (await req.json()) as {
       images: string[]; // base64 data URLs
-      selectedServices: RateCardItem[];
-      notes: string;
+      prompt: string; // free-text description of the job from the salesperson
     };
 
     if (!images?.length) {
       return NextResponse.json({ error: "Include at least one photo." }, { status: 400 });
     }
-    if (!selectedServices?.length) {
-      return NextResponse.json({ error: "Select at least one service." }, { status: 400 });
+    if (!prompt?.trim()) {
+      return NextResponse.json({ error: "Describe the job in a sentence or two." }, { status: 400 });
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -31,7 +23,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rateCardText = selectedServices
+    // Pull the FULL rate card server-side — the AI is only ever allowed to use
+    // these prices, regardless of what the salesperson typed in the prompt.
+    const supabase = await createClient();
+    const { data: rateCard } = await supabase.from("rate_card").select("*").order("service_name");
+
+    if (!rateCard || rateCard.length === 0) {
+      return NextResponse.json(
+        { error: "No rate card set up yet — ask an admin to add one under Settings → Rate card." },
+        { status: 400 }
+      );
+    }
+
+    const rateCardText = rateCard
       .map(
         (s) =>
           `- ${s.service_name}: $${s.low_price}–$${s.high_price} per ${s.unit}${
@@ -40,15 +44,16 @@ export async function POST(req: NextRequest) {
       )
       .join("\n");
 
-    const systemPrompt = `You are helping a contractor's field salesperson turn on-site photos into a ROUGH, DRAFT price estimate. This is a starting point a human will review and adjust before it's ever sent to a customer — not a final quote.
+    const systemPrompt = `You are helping a contractor's field salesperson turn on-site photos and a short description into a ROUGH, DRAFT price estimate. This is a starting point a human will review and adjust before it's ever sent to a customer — not a final quote.
 
 Rules you must follow:
-1. Only use the price ranges given below. Never invent prices outside them.
-2. For each requested service, estimate a plausible quantity (sqft, hours, etc.) from what's visible in the photos, then multiply by the given per-unit range to get a low/high dollar estimate for that line item.
-3. If a photo doesn't give you enough information to judge scope (e.g. can't see roof pitch, can't tell material thickness, photo too far away), say so explicitly in "caveats" instead of guessing wildly.
-4. Always output a range (low/high), never a single confident number.
-5. Base complexity adjustments (steep terrain, heavy staining, extensive cracking, tight access, multiple stories) on what's actually visible — name the specific visual cue you're reacting to.
-6. Output ONLY valid JSON, no markdown fences, no commentary outside the JSON, matching exactly this shape:
+1. Read the salesperson's description below to figure out which services from the rate card apply — it may mention several (e.g. "window cleaning and gutters").
+2. Only use the price ranges given below. Never invent prices or services outside the rate card.
+3. For each service that applies, estimate a plausible quantity (sqft, hours, etc.) from what's visible in the photos, then multiply by the given per-unit range to get a low/high dollar estimate for that line item.
+4. If a photo doesn't give you enough information to judge scope (e.g. can't see roof pitch, can't tell material thickness, photo too far away), say so explicitly in "caveats" instead of guessing wildly.
+5. Always output a range (low/high), never a single confident number.
+6. Base complexity adjustments (steep terrain, heavy staining, extensive cracking, tight access, multiple stories) on what's actually visible — name the specific visual cue you're reacting to.
+7. Output ONLY valid JSON, no markdown fences, no commentary outside the JSON, matching exactly this shape:
 {
   "line_items": [
     { "service_name": string, "estimated_quantity": string, "low": number, "high": number, "reasoning": string }
@@ -58,10 +63,10 @@ Rules you must follow:
   "caveats": [string]
 }
 
-Rate card (the ONLY prices you're allowed to use):
+Rate card (the ONLY prices and services you're allowed to use):
 ${rateCardText}
 
-Salesperson's on-site notes: ${notes || "(none provided)"}`;
+Salesperson's description of the job: ${prompt.trim()}`;
 
     const imageBlocks = images.slice(0, 8).map((dataUrl) => {
       const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);

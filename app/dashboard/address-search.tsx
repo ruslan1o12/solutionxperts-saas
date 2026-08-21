@@ -29,23 +29,15 @@ export default function AddressSearch({
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=6&countrycodes=ca&viewbox=-81.45,43.10,-80.95,42.85&bounded=0&q=${encodeURIComponent(value)}`
-        );
+        const res = await fetch(`/api/address-search?q=${encodeURIComponent(value)}`);
         const data = await res.json();
-        setResults(
-          (data as { display_name: string; lat: string; lon: string }[]).map((d) => ({
-            label: d.display_name,
-            lat: parseFloat(d.lat),
-            lng: parseFloat(d.lon),
-          }))
-        );
+        setResults(data.results ?? []);
         setOpen(true);
       } catch {
         setResults([]);
       }
       setLoading(false);
-    }, 450);
+    }, 350);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };

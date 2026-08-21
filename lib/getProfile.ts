@@ -8,11 +8,12 @@ export async function getCurrentProfile() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { user: null, role: null as Role | null, fullName: null };
+  if (!user)
+    return { user: null, role: null as Role | null, fullName: null, aiEstimatorEnabled: true };
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name")
+    .select("role, full_name, ai_estimator_enabled")
     .eq("id", user.id)
     .single();
 
@@ -20,5 +21,6 @@ export async function getCurrentProfile() {
     user,
     role: (profile?.role as Role) ?? "technician",
     fullName: profile?.full_name ?? null,
+    aiEstimatorEnabled: profile?.ai_estimator_enabled !== false,
   };
 }

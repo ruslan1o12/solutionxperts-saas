@@ -19,6 +19,11 @@ const SECTIONS = [
     desc: "Legal name, tax number, business number — shown on invoice PDFs.",
   },
   {
+    href: "/dashboard/settings/email",
+    title: "Email",
+    desc: "The address invoices, estimates, and job notifications send from.",
+  },
+  {
     href: "/dashboard/settings/theme",
     title: "Branding & theme",
     desc: "Logo, font, and color scheme for the whole site.",
@@ -32,6 +37,11 @@ const SECTIONS = [
     href: "/dashboard/team-activity",
     title: "Team activity",
     desc: "Hours worked and doors knocked, by person.",
+  },
+  {
+    href: "/dashboard/payroll",
+    title: "Payroll & commission",
+    desc: "What each person's owed — commission on sales, hourly/daily/flat/percentage pay for techs.",
   },
 ];
 

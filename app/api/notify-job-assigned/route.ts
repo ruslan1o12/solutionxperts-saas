@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getEmailSender } from "@/lib/getEmailSender";
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: process.env.NOTIFY_FROM_EMAIL || "SolutionXperts <onboarding@resend.dev>",
+          from: await getEmailSender(),
           to: tech.email,
           subject: `New job assigned — ${customerName}`,
           html: `<p>Hi ${tech.full_name || "there"},</p>

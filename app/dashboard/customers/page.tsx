@@ -8,10 +8,17 @@ export default async function CustomersPage() {
   if (role === "technician") redirect("/dashboard/jobs");
 
   const supabase = await createClient();
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const [{ data: customers }, { data: profiles }] = await Promise.all([
+    supabase.from("customers").select("*").order("created_at", { ascending: false }),
+    supabase.from("profiles").select("id, full_name"),
+  ]);
 
-  return <CustomersView list={customers ?? []} />;
+  const nameById: Record<string, string> = {};
+  (profiles ?? []).forEach((p) => (nameById[p.id] = p.full_name || "Team member"));
+  const withAddedBy = (customers ?? []).map((c) => ({
+    ...c,
+    added_by_name: c.created_by ? nameById[c.created_by] || "Team member" : null,
+  }));
+
+  return <CustomersView list={withAddedBy} />;
 }

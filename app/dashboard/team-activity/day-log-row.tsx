@@ -12,6 +12,7 @@ type WorkDay = {
   ended_at: string | null;
   doors_knocked: number | null;
   notes: string | null;
+  is_driver?: boolean | null;
 };
 
 function toLocalInput(iso: string | null) {
@@ -53,7 +54,14 @@ export default function DayLogRow({ day, name }: { day: WorkDay; name: string })
     <div className="bg-white border border-line rounded-2xl p-4">
       <div className="flex justify-between items-start mb-2">
         <div>
-          <div className="font-bold">{name}</div>
+          <div className="font-bold flex items-center gap-1.5">
+            {name}
+            {day.is_driver && (
+              <span className="text-[9px] font-extrabold uppercase bg-[#EAF6EC] text-signal px-1.5 py-0.5 rounded-full">
+                Driver
+              </span>
+            )}
+          </div>
           <div className="text-xs text-neutral-500">{day.work_date}</div>
         </div>
         <div className="text-xs font-bold text-neutral-500">

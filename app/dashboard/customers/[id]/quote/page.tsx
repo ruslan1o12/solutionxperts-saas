@@ -20,6 +20,7 @@ export default function QuoteBuilderPage() {
   );
   const [lines, setLines] = useState<LineItem[]>([newLine()]);
   const [taxRate, setTaxRate] = useState("13");
+  const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
@@ -29,6 +30,10 @@ export default function QuoteBuilderPage() {
   const [working, setWorking] = useState(false);
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [savedQuoteId, setSavedQuoteId] = useState<string | null>(null);
+  const [publicToken, setPublicToken] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const key = `sx_estimate_${params.id}`;
@@ -73,12 +78,12 @@ export default function QuoteBuilderPage() {
       .map((l) => `${l.desc}  x${l.qty}  $${(Number(l.qty) * Number(l.price)).toFixed(2)}`)
       .join("\n");
     return (
-      `SolutionXperts — Estimate\n` +
-      `For: ${customer?.name ?? ""}\n\n` +
+      `Hi ${customer?.name ?? "there"}! Here's what we talked about:\n\n` +
       `${rows}\n\n` +
       `Subtotal: $${subtotal.toFixed(2)}\n` +
       `Tax (${taxRate}%): $${tax.toFixed(2)}\n` +
-      `Total: $${total.toFixed(2)}`
+      `Total: $${total.toFixed(2)}\n\n` +
+      `Let us know if you have any questions!`
     );
   }
 
@@ -121,6 +126,8 @@ export default function QuoteBuilderPage() {
         status: "Sent",
         due_date: dueDate || null,
         stripe_payment_link: data.url,
+        description: description.trim() || null,
+        salesman_id: user?.id,
         created_by: user?.id,
       })
       .select()
@@ -129,12 +136,31 @@ export default function QuoteBuilderPage() {
     await supabase.from("customers").update({ status: "Quoted" }).eq("id", params.id);
 
     setSavedQuoteId(savedQuote?.id ?? null);
+    setPublicToken(savedQuote?.public_token ?? null);
     setPaymentLink(data.url);
     setWorking(false);
   }
 
   const bodyText = paymentLink ? `${quoteText()}\n\nPay online: ${paymentLink}` : quoteText();
   const contact = customer?.contact ?? "";
+
+  async function sendEmailFromBusiness() {
+    if (!savedQuoteId) return;
+    setSendingEmail(true);
+    setEmailStatus(null);
+    try {
+      const res = await fetch("/api/email-invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quoteId: savedQuoteId }),
+      });
+      const data = await res.json();
+      setEmailStatus(res.ok ? "Sent ✓" : data.error || "Failed to send.");
+    } catch {
+      setEmailStatus("Failed to send.");
+    }
+    setSendingEmail(false);
+  }
   const looksLikeEmail = contact.includes("@");
   const looksLikePhone = /\d{7,}/.test(contact);
 
@@ -203,6 +229,21 @@ export default function QuoteBuilderPage() {
         />
       </div>
 
+      <div className="mb-4">
+        <label className="block text-xs font-bold uppercase tracking-wide text-neutral-500 mb-1.5">
+          Short description for the customer (optional)
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="e.g. Full exterior window cleaning, ground floor + second story, plus gutter clear-out."
+          className="w-full border border-line rounded-lg px-3 py-2.5 bg-white min-h-16"
+        />
+        <p className="text-xs text-neutral-500 mt-1">
+          Shows on the link you send them, above the price.
+        </p>
+      </div>
+
       <div className="flex justify-between items-center border-t-2 border-ink py-3 mb-4">
         <span className="text-sm font-bold">Total</span>
         <span className="text-2xl font-extrabold">${total.toFixed(2)}</span>
@@ -224,14 +265,13 @@ export default function QuoteBuilderPage() {
             {bodyText}
           </div>
           <div className="flex gap-2">
-            <a
-              href={`mailto:${looksLikeEmail ? contact : ""}?subject=${encodeURIComponent(
-                "Estimate from SolutionXperts"
-              )}&body=${encodeURIComponent(bodyText)}`}
-              className="flex-1 text-center bg-ink text-paper font-bold rounded-xl py-3"
+            <button
+              onClick={sendEmailFromBusiness}
+              disabled={!looksLikeEmail || sendingEmail}
+              className="flex-1 text-center bg-ink text-paper font-bold rounded-xl py-3 disabled:opacity-50"
             >
-              Send via Email
-            </a>
+              {sendingEmail ? "Sending..." : "Send via Email"}
+            </button>
             <a
               href={`sms:${looksLikePhone ? contact.replace(/\D/g, "") : ""}?&body=${encodeURIComponent(
                 bodyText
@@ -241,10 +281,48 @@ export default function QuoteBuilderPage() {
               Send via Text
             </a>
           </div>
+          {emailStatus && <p className="text-xs text-center mt-2 font-semibold">{emailStatus}</p>}
           <p className="text-xs text-neutral-500 mt-3">
-            This opens your phone&apos;s email or messaging app with the estimate and payment link
-            pre-filled — review it, then hit send.
+            {looksLikeEmail
+              ? "Sends from your business email address (set in Settings → Email) with the invoice PDF attached. Texting still opens your phone's messaging app."
+              : "No email on file for this customer — add one to send this way, or use text."}
           </p>
+
+          {publicToken && (
+            <div className="bg-[#EAF6EC] border border-signal rounded-2xl p-4 mt-4">
+              <div className="text-xs font-extrabold uppercase tracking-wide text-steel mb-2">
+                Customer link — with Accept / Decline
+              </div>
+              <p className="text-xs text-neutral-600 mb-3">
+                This opens a page for the customer with your description, the price, the invoice
+                PDF, and buttons to Accept or Decline — you and the admin get notified either way.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `${window.location.origin}/invoice/${publicToken}`
+                    );
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                  }}
+                  className="flex-1 bg-ink text-paper font-bold rounded-xl py-2.5 text-sm"
+                >
+                  {linkCopied ? "Copied ✓" : "Copy link"}
+                </button>
+                {looksLikePhone && (
+                  <a
+                    href={`sms:${contact.replace(/\D/g, "")}?&body=${encodeURIComponent(
+                      `Hi ${customer?.name ?? "there"}! Here's your estimate: ${window.location.origin}/invoice/${publicToken}`
+                    )}`}
+                    className="flex-1 text-center bg-white border border-line font-bold rounded-xl py-2.5 text-sm"
+                  >
+                    Text link
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
           {savedQuoteId && (
             <a
               href={`/api/invoice-pdf/${savedQuoteId}`}

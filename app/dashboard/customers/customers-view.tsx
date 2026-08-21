@@ -11,6 +11,8 @@ type Customer = {
   service_type: string | null;
   status: string;
   follow_up: string | null;
+  created_at?: string;
+  added_by_name?: string | null;
 };
 
 const PILL: Record<string, string> = {
@@ -89,6 +91,12 @@ export default function CustomersView({ list }: { list: Customer[] }) {
             </div>
             {c.follow_up && (
               <div className="text-xs text-neutral-500 mt-1">Follow up: {c.follow_up}</div>
+            )}
+            {c.added_by_name && (
+              <div className="text-[11px] text-neutral-400 mt-1">
+                Added by {c.added_by_name}
+                {c.created_at ? ` · ${new Date(c.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
+              </div>
             )}
           </Link>
         ))}

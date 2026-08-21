@@ -3,6 +3,7 @@ import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import EmployeeCard from "./employee-card";
+import AddEmployeeForm from "./add-employee-form";
 
 export default async function TeamPage() {
   const { role, user } = await getCurrentProfile();
@@ -11,7 +12,7 @@ export default async function TeamPage() {
   const supabase = await createClient();
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, full_name, phone, email, role, photo_gate_enabled, created_at")
+    .select("id, full_name, phone, email, role, photo_gate_enabled, ai_estimator_enabled, commission_rate, pay_type, pay_rate, created_at")
     .order("created_at", { ascending: true });
 
   return (
@@ -25,6 +26,8 @@ export default async function TeamPage() {
         only see their assigned jobs. Photo verification can be required or skipped per person,
         regardless of role — tap a field to edit it, it saves automatically.
       </p>
+
+      <AddEmployeeForm />
 
       <div className="flex flex-col gap-2">
         {(profiles ?? []).map((p) => (

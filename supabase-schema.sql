@@ -17,6 +17,7 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists photo_gate_enabled boolean default true;
+alter table public.profiles add column if not exists ai_estimator_enabled boolean default true;
 
 -- backfill email for accounts created before this column existed
 update public.profiles p set email = u.email from auth.users u where p.id = u.id and p.email is null;
@@ -72,17 +73,38 @@ create table if not exists public.quotes (
 -- columns added after the first release — safe no-ops if they already exist
 alter table public.quotes add column if not exists due_date date;
 alter table public.quotes add column if not exists paid_at timestamptz;
+alter table public.quotes add column if not exists public_token uuid default gen_random_uuid();
+alter table public.quotes add column if not exists description text;
+alter table public.quotes add column if not exists approval_status text default 'Pending'; -- Pending | Accepted | Declined
+alter table public.quotes add column if not exists approved_at timestamptz;
+alter table public.quotes add column if not exists salesman_id uuid references auth.users(id);
+create unique index if not exists quotes_public_token_idx on public.quotes(public_token);
+
+-- Profiles: per-employee pay setup, used by the payroll/commission report.
+alter table public.profiles add column if not exists commission_rate numeric default 0; -- % of sale, for salesmen
+alter table public.profiles add column if not exists pay_type text default 'hourly'; -- hourly | daily | percentage | flat
+alter table public.profiles add column if not exists pay_rate numeric default 0;
+
+-- Work days: doors_knocked becomes a running total built from +/- taps with a
+-- quick note each, instead of a single number you overwrite.
+alter table public.work_days add column if not exists door_events jsonb default '[]';
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid references public.customers(id) on delete cascade,
   quote_id uuid references public.quotes(id) on delete set null,
   assigned_to uuid references auth.users(id),
+  sold_by uuid references auth.users(id),
   scheduled_at timestamptz,
+  duration_minutes int default 60,
+  job_description text,
   status text not null default 'Scheduled', -- Scheduled | On The Way | Arrived | In Progress | Completed | Cancelled
   created_by uuid references auth.users(id),
   created_at timestamptz default now()
 );
+alter table public.jobs add column if not exists sold_by uuid references auth.users(id);
+alter table public.jobs add column if not exists duration_minutes int default 60;
+alter table public.jobs add column if not exists job_description text;
 
 create table if not exists public.rate_card (
   id uuid primary key default gen_random_uuid(),
@@ -141,10 +163,18 @@ create table if not exists public.notifications (
 
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
+  conversation_id uuid references public.conversations(id) on delete cascade,
   sender_id uuid references auth.users(id),
   body text not null,
+  redacted boolean default false,
   created_at timestamptz default now()
 );
+alter table public.messages add column if not exists conversation_id uuid references public.conversations(id) on delete cascade;
+alter table public.messages add column if not exists redacted boolean default false;
+
+-- Any pre-existing messages from before conversations existed belong to General.
+update public.messages set conversation_id = '00000000-0000-0000-0000-000000000001'
+where conversation_id is null;
 
 create table if not exists public.theme_settings (
   id int primary key default 1,
@@ -197,6 +227,43 @@ create table if not exists public.business_settings (
 );
 insert into public.business_settings (id) values (1) on conflict (id) do nothing;
 
+create table if not exists public.email_settings (
+  id int primary key default 1,
+  from_email text default 'onboarding@resend.dev',
+  from_name text default 'SolutionXperts',
+  updated_at timestamptz default now(),
+  constraint single_row_email check (id = 1)
+);
+insert into public.email_settings (id) values (1) on conflict (id) do nothing;
+
+-- Jobs: track exactly when a job was completed, so daily driver/sales reports
+-- can be attributed to the correct calendar day.
+alter table public.jobs add column if not exists completed_at timestamptz;
+
+-- Work days: track who was "driver for the day" — this is who gets job-completion
+-- notifications alongside admins, and shows up in the daily CSV export.
+alter table public.work_days add column if not exists is_driver boolean default false;
+
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  name text,
+  is_group boolean default true,
+  is_general boolean default false,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now()
+);
+
+-- The one always-on, all-hands channel. Fixed id so this insert is idempotent.
+insert into public.conversations (id, name, is_group, is_general, created_by)
+values ('00000000-0000-0000-0000-000000000001', 'General', true, true, null)
+on conflict (id) do nothing;
+
+create table if not exists public.conversation_participants (
+  conversation_id uuid references public.conversations(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  primary key (conversation_id, user_id)
+);
+
 -- Private storage bucket for before/after job photos (not publicly readable)
 insert into storage.buckets (id, name, public)
 values ('job-photos', 'job-photos', false)
@@ -222,6 +289,9 @@ alter table public.business_settings enable row level security;
 alter table public.notifications enable row level security;
 alter table public.messages enable row level security;
 alter table public.theme_settings enable row level security;
+alter table public.conversations enable row level security;
+alter table public.conversation_participants enable row level security;
+alter table public.email_settings enable row level security;
 
 drop policy if exists "team read profiles" on public.profiles;
 create policy "team read profiles" on public.profiles for select using (auth.role() = 'authenticated');
@@ -388,11 +458,75 @@ create policy "notifications own select" on public.notifications for select usin
 drop policy if exists "notifications own update" on public.notifications;
 create policy "notifications own update" on public.notifications for update using (recipient_id = auth.uid());
 
--- Messages: shared team channel, everyone signed in can read and post.
+-- Conversations: readable if it's the General channel, you're a participant, or you're admin.
+drop policy if exists "conversations read" on public.conversations;
+create policy "conversations read" on public.conversations for select using (
+  is_general = true
+  or exists (select 1 from public.conversation_participants cp where cp.conversation_id = conversations.id and cp.user_id = auth.uid())
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "conversations insert" on public.conversations;
+create policy "conversations insert" on public.conversations for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists "participants read" on public.conversation_participants;
+create policy "participants read" on public.conversation_participants for select using (
+  user_id = auth.uid()
+  or exists (
+    select 1 from public.conversation_participants cp2
+    where cp2.conversation_id = conversation_participants.conversation_id and cp2.user_id = auth.uid()
+  )
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "participants insert" on public.conversation_participants;
+create policy "participants insert" on public.conversation_participants for insert with check (auth.role() = 'authenticated');
+drop policy if exists "participants delete" on public.conversation_participants;
+create policy "participants delete" on public.conversation_participants for delete using (
+  user_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Messages: read/post only in the General channel or a conversation you're part of.
 drop policy if exists "messages read" on public.messages;
-create policy "messages read" on public.messages for select using (auth.role() = 'authenticated');
+create policy "messages read" on public.messages for select using (
+  exists (
+    select 1 from public.conversations c
+    where c.id = messages.conversation_id
+    and (
+      c.is_general = true
+      or exists (select 1 from public.conversation_participants cp where cp.conversation_id = c.id and cp.user_id = auth.uid())
+    )
+  )
+  or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
 drop policy if exists "messages insert" on public.messages;
-create policy "messages insert" on public.messages for insert with check (auth.role() = 'authenticated' and sender_id = auth.uid());
+create policy "messages insert" on public.messages for insert with check (
+  sender_id = auth.uid()
+  and exists (
+    select 1 from public.conversations c
+    where c.id = messages.conversation_id
+    and (
+      c.is_general = true
+      or exists (select 1 from public.conversation_participants cp where cp.conversation_id = c.id and cp.user_id = auth.uid())
+    )
+  )
+);
+drop policy if exists "messages delete" on public.messages;
+create policy "messages delete" on public.messages for delete using (
+  sender_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+drop policy if exists "messages redact" on public.messages;
+create policy "messages redact" on public.messages for update using (
+  sender_id = auth.uid() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
+-- Email settings: everyone reads (server routes need it), only admin edits.
+drop policy if exists "email settings read" on public.email_settings;
+create policy "email settings read" on public.email_settings for select using (auth.role() = 'authenticated');
+drop policy if exists "email settings admin write" on public.email_settings;
+create policy "email settings admin write" on public.email_settings for all using (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+) with check (
+  exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
 
 -- Theme settings: everyone can read (so the whole site can style itself),
 -- only admins can change branding.

@@ -4,13 +4,14 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import StatusEditor from "./status-editor";
 import DeleteCustomerButton from "./delete-customer-button";
+import MapLink from "../../map-link";
 
 export default async function CustomerDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { role } = await getCurrentProfile();
+  const { role, aiEstimatorEnabled } = await getCurrentProfile();
   if (role === "technician") redirect("/dashboard/jobs");
 
   const { id } = await params;
@@ -45,7 +46,11 @@ export default async function CustomerDetailPage({
           <div className="text-xl font-extrabold">{customer.name}</div>
           <div className="text-sm text-neutral-500">{customer.service_type}</div>
           {customer.contact && <div className="text-sm mt-1">{customer.contact}</div>}
-          {customer.address && <div className="text-sm text-neutral-500">{customer.address}</div>}
+          {customer.address && (
+            <div className="text-sm">
+              <MapLink address={customer.address} className="text-steel underline" />
+            </div>
+          )}
         </div>
         <Link
           href={`/dashboard/customers/${id}/edit`}
@@ -61,12 +66,14 @@ export default async function CustomerDetailPage({
       >
         Create quote / estimate
       </Link>
-      <Link
-        href={`/dashboard/customers/${id}/estimate`}
-        className="block text-center bg-white border-2 border-signal text-signal font-bold rounded-xl py-3 mt-2"
-      >
-        📷 AI estimate from photos
-      </Link>
+      {aiEstimatorEnabled && (
+        <Link
+          href={`/dashboard/customers/${id}/estimate`}
+          className="block text-center bg-white border-2 border-signal text-signal font-bold rounded-xl py-3 mt-2"
+        >
+          📷 AI estimate from photos
+        </Link>
+      )}
 
       {(quotes ?? []).length > 0 && (
         <div className="bg-white border border-line rounded-2xl p-4 mt-4">

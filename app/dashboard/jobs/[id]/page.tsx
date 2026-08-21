@@ -5,6 +5,7 @@ import JobActions from "./job-actions";
 import JobPhotoGallery from "./job-photo-gallery";
 import ResendNotifyButton from "./resend-notify-button";
 import DeleteJobButton from "./delete-job-button";
+import MapLink from "../../map-link";
 
 const STATUS_LABEL_COLOR: Record<string, string> = {
   Scheduled: "text-steel",
@@ -45,6 +46,17 @@ export default async function JobDetailPage({
     photoGateEnabled = tech?.photo_gate_enabled !== false;
   }
 
+  let createdByName: string | null = null;
+  let salesmanName: string | null = null;
+  if (job.created_by) {
+    const { data: creator } = await supabase.from("profiles").select("full_name").eq("id", job.created_by).single();
+    createdByName = creator?.full_name ?? null;
+  }
+  if (job.sold_by) {
+    const { data: sales } = await supabase.from("profiles").select("full_name").eq("id", job.sold_by).single();
+    salesmanName = sales?.full_name ?? null;
+  }
+
   return (
     <div>
       <Link href="/dashboard/jobs" className="text-steel font-bold text-sm">
@@ -52,9 +64,21 @@ export default async function JobDetailPage({
       </Link>
 
       <div className="mt-3 mb-4">
-        <div className="text-xl font-extrabold">{job.customers?.name ?? "Customer"}</div>
+        <div className="flex items-start justify-between">
+          <div className="text-xl font-extrabold">{job.customers?.name ?? "Customer"}</div>
+          {(role === "admin" || role === "salesman") && (
+            <Link
+              href={`/dashboard/jobs/${id}/edit`}
+              className="text-steel font-bold text-xs bg-white border border-line rounded-lg px-3 py-1.5 whitespace-nowrap"
+            >
+              Edit job
+            </Link>
+          )}
+        </div>
         {job.customers?.address && (
-          <div className="text-sm text-neutral-500">{job.customers.address}</div>
+          <div className="text-sm">
+            <MapLink address={job.customers.address} className="text-steel underline font-semibold" />
+          </div>
         )}
         {job.customers?.contact && <div className="text-sm mt-1">{job.customers.contact}</div>}
         {job.scheduled_at && (
@@ -67,11 +91,29 @@ export default async function JobDetailPage({
               hour: "numeric",
               minute: "2-digit",
             })}
+            {job.duration_minutes ? ` (${job.duration_minutes} min)` : ""}
           </div>
         )}
         <div className={`text-xs font-extrabold uppercase mt-1 ${STATUS_LABEL_COLOR[job.status] ?? ""}`}>
           {job.status}
         </div>
+        {job.job_description && (
+          <div className="bg-[#F4F7F2] border border-line rounded-xl p-3 mt-3 text-sm">
+            <div className="text-[10px] font-extrabold uppercase tracking-wide text-steel mb-1">
+              Job details
+            </div>
+            {job.job_description}
+          </div>
+        )}
+        {(createdByName || salesmanName) && (
+          <div className="text-[11px] text-neutral-400 mt-2">
+            {salesmanName && <>Sold by {salesmanName}</>}
+            {salesmanName && createdByName && salesmanName !== createdByName ? " · " : ""}
+            {createdByName && (!salesmanName || salesmanName !== createdByName) && `Scheduled by ${createdByName}`}
+            {job.created_at &&
+              ` · ${new Date(job.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}
+          </div>
+        )}
       </div>
 
       <JobActions job={job} techName={techName} photoGateEnabled={photoGateEnabled} />

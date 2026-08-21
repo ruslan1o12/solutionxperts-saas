@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Logo from "@/app/logo";
 import { usePathname } from "next/navigation";
 import SignOutButton from "./sign-out-button";
 import NotificationBell from "./notification-bell";
 
-type Role = "admin" | "salesman" | "technician" | null;
+type Role = "admin" | "salesman" | "technician" | "driver" | null;
 type NavItem = { href: string; label: string; icon: IconName };
 type IconName = "camera" | "map" | "calendar" | "grid" | "users" | "invoice" | "team" | "chart" | "clock" | "cash" | "bell" | "chat" | "gear";
 
@@ -15,20 +16,24 @@ export default function AppShell({
   role,
   fullName,
   logoUrl,
+  aiEstimatorEnabled = true,
   children,
 }: {
   role: Role;
   fullName: string | null;
   logoUrl: string | null;
+  aiEstimatorEnabled?: boolean;
   children: React.ReactNode;
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const pathname = usePathname();
   const isOfficeStaff = role === "admin" || role === "salesman";
   const isAdmin = role === "admin";
 
   const primaryLinks: NavItem[] = [
-    isOfficeStaff && { href: "/dashboard/estimator", label: "Estimator", icon: "camera" },
+    isOfficeStaff && aiEstimatorEnabled && { href: "/dashboard/estimator", label: "Estimator", icon: "camera" },
     isOfficeStaff && { href: "/dashboard/map", label: "Map", icon: "map" },
     { href: "/dashboard/jobs", label: "Schedule", icon: "calendar" },
   ].filter(Boolean) as NavItem[];
@@ -138,55 +143,60 @@ export default function AppShell({
         ))}
       </nav>
 
-      {/* Mobile drawer */}
-      {drawerOpen && (
-        <div className="md:hidden fixed inset-0 z-30 flex">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
-          <div className="relative w-72 max-w-[80vw] bg-white h-full flex flex-col">
-            <div className="bg-ink px-5 pt-6 pb-4 flex items-center gap-3">
-              <Logo logoUrl={logoUrl} size={34} />
-              <div>
-                <div className="text-paper font-extrabold text-sm">{fullName || "Team member"}</div>
-                <div className="text-mint text-[10px] font-semibold uppercase tracking-wider">{role ?? ""}</div>
+      {/* Mobile drawer — rendered via portal straight into <body> so Leaflet's
+          transformed map layers (which can create their own stacking context)
+          can never end up visually on top of it, regardless of z-index. */}
+      {mounted &&
+        drawerOpen &&
+        createPortal(
+          <div className="md:hidden fixed inset-0 z-[999999] flex">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
+            <div className="relative w-72 max-w-[80vw] bg-white h-full flex flex-col">
+              <div className="bg-ink px-5 pt-6 pb-4 flex items-center gap-3">
+                <Logo logoUrl={logoUrl} size={34} />
+                <div>
+                  <div className="text-paper font-extrabold text-sm">{fullName || "Team member"}</div>
+                  <div className="text-mint text-[10px] font-semibold uppercase tracking-wider">{role ?? ""}</div>
+                </div>
+                <button onClick={() => setDrawerOpen(false)} className="ml-auto text-paper p-1" aria-label="Close menu">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
               </div>
-              <button onClick={() => setDrawerOpen(false)} className="ml-auto text-paper p-1" aria-label="Close menu">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 py-2 overflow-y-auto">
-              <div className="px-5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Personal
+              <div className="flex-1 py-2 overflow-y-auto">
+                <div className="px-5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  Personal
+                </div>
+                {personalLinks.map((link) => (
+                  <DrawerLink key={link.href} link={link} active={isActive(link.href)} onClick={() => setDrawerOpen(false)} />
+                ))}
+                {isOfficeStaff && (
+                  <>
+                    <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Business
+                    </div>
+                    {businessLinks.map((link) => (
+                      <DrawerLink key={link.href} link={link} active={isActive(link.href)} onClick={() => setDrawerOpen(false)} />
+                    ))}
+                  </>
+                )}
+                {isAdmin && (
+                  <>
+                    <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Admin
+                    </div>
+                    <DrawerLink link={settingsLink} active={isActive(settingsLink.href)} onClick={() => setDrawerOpen(false)} />
+                  </>
+                )}
               </div>
-              {personalLinks.map((link) => (
-                <DrawerLink key={link.href} link={link} active={isActive(link.href)} onClick={() => setDrawerOpen(false)} />
-              ))}
-              {isOfficeStaff && (
-                <>
-                  <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Business
-                  </div>
-                  {businessLinks.map((link) => (
-                    <DrawerLink key={link.href} link={link} active={isActive(link.href)} onClick={() => setDrawerOpen(false)} />
-                  ))}
-                </>
-              )}
-              {isAdmin && (
-                <>
-                  <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Admin
-                  </div>
-                  <DrawerLink link={settingsLink} active={isActive(settingsLink.href)} onClick={() => setDrawerOpen(false)} />
-                </>
-              )}
+              <div className="p-4 border-t border-line">
+                <SignOutButton />
+              </div>
             </div>
-            <div className="p-4 border-t border-line">
-              <SignOutButton />
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

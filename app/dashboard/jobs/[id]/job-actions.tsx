@@ -61,7 +61,7 @@ export default function JobActions({
 
   async function markComplete() {
     setWorking(true);
-    await supabase.from("jobs").update({ status: "Completed" }).eq("id", job.id);
+    await supabase.from("jobs").update({ status: "Completed", completed_at: new Date().toISOString() }).eq("id", job.id);
     setStatus("Completed");
     await notifyOfficeStaff(supabase, {
       title: "Job completed",
@@ -95,8 +95,8 @@ export default function JobActions({
   }
 
   const smsText: Record<string, string> = {
-    "On The Way": `Hi ${customerName}, this is SolutionXperts — your technician is on the way now.`,
-    Arrived: `Hi ${customerName}, your SolutionXperts technician has arrived.`,
+    "On The Way": `Hi ${customerName}! Just heading your way now — see you soon 🙂`,
+    Arrived: `Hi ${customerName}, we've arrived! We'll get started shortly.`,
   };
 
   return (
