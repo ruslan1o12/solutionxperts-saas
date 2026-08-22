@@ -12,25 +12,32 @@ type Message = {
   created_at: string;
 };
 
+type Person = { id: string; name: string };
+
 export default function ConversationPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const supabase = createClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
+  const [people, setPeople] = useState<Person[]>([]);
   const [text, setText] = useState("");
   const [myId, setMyId] = useState<string | null>(null);
+  const [myName, setMyName] = useState<string>("Someone");
   const [isAdmin, setIsAdmin] = useState(false);
   const [convoName, setConvoName] = useState("Chat");
   const [loading, setLoading] = useState(true);
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function loadNames() {
     const { data } = await supabase.from("profiles").select("id, full_name");
     const map: Record<string, string> = {};
     (data ?? []).forEach((p) => (map[p.id] = p.full_name || "Team member"));
     setNames(map);
+    setPeople((data ?? []).map((p) => ({ id: p.id, name: p.full_name || "Team member" })));
   }
 
   async function loadMessages() {
@@ -51,8 +58,9 @@ export default function ConversationPage() {
       } = await supabase.auth.getUser();
       setMyId(user?.id ?? null);
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+        const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single();
         setIsAdmin(profile?.role === "admin");
+        setMyName(profile?.full_name || "Someone");
       }
 
       const { data: convo } = await supabase
@@ -98,7 +106,46 @@ export default function ConversationPage() {
     const body = text.trim();
     setText("");
     await supabase.from("messages").insert({ sender_id: myId, body, conversation_id: params.id });
+
+    // @mentions: find "@Full Name" matches against real team members and
+    // notify them — both in-app and, if they've turned it on, a device push.
+    const mentioned = people.filter(
+      (p) => p.id !== myId && body.toLowerCase().includes(`@${p.name.toLowerCase()}`)
+    );
+    if (mentioned.length > 0) {
+      const title = `${myName} mentioned you in ${convoName}`;
+      await supabase.from("notifications").insert(
+        mentioned.map((p) => ({ recipient_id: p.id, title, message: body }))
+      );
+      fetch("/api/send-push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userIds: mentioned.map((p) => p.id),
+          title,
+          body,
+          url: `/dashboard/messages/${params.id}`,
+        }),
+      }).catch(() => {});
+    }
   }
+
+  function handleTextChange(value: string) {
+    setText(value);
+    const match = value.match(/@([\w ]*)$/);
+    setMentionQuery(match ? match[1].toLowerCase() : null);
+  }
+
+  function pickMention(name: string) {
+    setText((prev) => prev.replace(/@([\w ]*)$/, `@${name} `));
+    setMentionQuery(null);
+    inputRef.current?.focus();
+  }
+
+  const mentionMatches =
+    mentionQuery !== null
+      ? people.filter((p) => p.id !== myId && p.name.toLowerCase().includes(mentionQuery)).slice(0, 5)
+      : [];
 
   async function deleteMessage(id: string) {
     if (!confirm("Delete this message? This can't be undone.")) return;
@@ -184,12 +231,26 @@ export default function ConversationPage() {
         )}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 relative">
+        {mentionMatches.length > 0 && (
+          <div className="absolute bottom-full mb-1 left-0 right-16 bg-white border border-line rounded-xl shadow-lg overflow-hidden z-10">
+            {mentionMatches.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => pickMention(p.name)}
+                className="block w-full text-left px-4 py-2.5 text-sm font-semibold hover:bg-[#F4F7F2]"
+              >
+                @{p.name}
+              </button>
+            ))}
+          </div>
+        )}
         <input
+          ref={inputRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Message..."
+          onChange={(e) => handleTextChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && !mentionMatches.length && send()}
+          placeholder="Message... use @ to mention someone"
           className="flex-1 border border-line rounded-xl px-4 py-3 bg-white"
         />
         <button onClick={send} className="bg-signal text-white font-bold rounded-xl px-5">

@@ -38,6 +38,10 @@ create table if not exists public.customers (
 alter table public.customers add column if not exists lat double precision;
 alter table public.customers add column if not exists lng double precision;
 
+-- Renaming the "Won" status to "Done" in the app code doesn't change data
+-- already saved — fix existing customers' stored status too.
+update public.customers set status = 'Done' where status = 'Won';
+
 create table if not exists public.customer_notes (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid references public.customers(id) on delete cascade,
@@ -244,6 +248,14 @@ insert into storage.buckets (id, name, public)
 values ('branding', 'branding', true)
 on conflict (id) do nothing;
 
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  endpoint text not null unique,
+  keys jsonb not null,
+  created_at timestamptz default now()
+);
+
 create table if not exists public.user_locations (
   user_id uuid primary key references auth.users(id) on delete cascade,
   lat double precision not null,
@@ -311,6 +323,11 @@ on conflict (id) do nothing;
 
 -- One-time bootstrap: anyone with the old default role becomes admin so the
 -- first user (you) doesn't get locked out when roles are introduced.
+-- The inline default above only applies when this table is first created —
+-- since it already exists in your database, force the real default here too,
+-- so new signups can't inherit a stale value from before roles existed.
+alter table public.profiles alter column role set default 'technician';
+
 update public.profiles set role = 'admin' where role = 'employee' or role is null;
 
 -- Row Level Security
@@ -326,6 +343,7 @@ alter table public.job_photos enable row level security;
 alter table public.expenses enable row level security;
 alter table public.territories enable row level security;
 alter table public.user_locations enable row level security;
+alter table public.push_subscriptions enable row level security;
 alter table public.business_settings enable row level security;
 alter table public.notifications enable row level security;
 alter table public.messages enable row level security;
@@ -458,6 +476,14 @@ drop policy if exists "user locations admin read" on public.user_locations;
 create policy "user locations admin read" on public.user_locations for select using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
+
+-- Push subscriptions: you manage your own device registrations only. Reading
+-- someone else's subscription happens server-side with the service role key
+-- (to actually send a push), never through this policy.
+drop policy if exists "push subs own" on public.push_subscriptions;
+create policy "push subs own" on public.push_subscriptions for all using (
+  user_id = auth.uid()
+) with check (user_id = auth.uid());
 
 -- Job photos: anyone signed in can upload (technicians included); admins can read
 -- everything, and an uploader can see their own rows' metadata (not the image

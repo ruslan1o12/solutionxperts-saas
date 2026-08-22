@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendPushToUsers } from "@/lib/sendPush";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
           message,
         }))
       );
+      await sendPushToUsers(Array.from(recipientIds), { title, body: message, url: "/dashboard/notifications" });
     }
 
     // Email whoever's getting notified, using their profile email on file

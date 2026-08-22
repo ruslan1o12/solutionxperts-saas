@@ -35,4 +35,18 @@ export async function notifyOfficeStaff(
       job_id: jobId || null,
     }))
   );
+
+  // This helper is called from the browser (job-actions.tsx), which has no
+  // access to the push private key — hand off to a server route to actually
+  // send the device push. Fire-and-forget: don't block the UI on it.
+  fetch("/api/send-push", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      userIds: Array.from(recipientIds),
+      title,
+      body: message,
+      url: jobId ? `/dashboard/jobs/${jobId}` : "/dashboard/notifications",
+    }),
+  }).catch(() => {});
 }

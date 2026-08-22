@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import EnablePushButton from "../enable-push-button";
 
 type Notif = {
   id: string;
@@ -47,6 +48,7 @@ export default function NotificationsPage() {
   return (
     <div>
       <div className="text-xl font-extrabold mb-4">Notifications</div>
+      <EnablePushButton />
       {items.length === 0 && (
         <p className="text-sm text-neutral-500 text-center py-10">Nothing yet.</p>
       )}
