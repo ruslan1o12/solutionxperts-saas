@@ -1,4 +1,12 @@
-export default function MapLink({ address, className }: { address: string; className?: string }) {
+export default function MapLink({
+  address,
+  className,
+  label,
+}: {
+  address: string;
+  className?: string;
+  label?: string;
+}) {
   return (
     <a
       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
@@ -6,7 +14,7 @@ export default function MapLink({ address, className }: { address: string; class
       rel="noopener noreferrer"
       className={className ?? "text-steel underline"}
     >
-      {address}
+      {label ?? address}
     </a>
   );
 }

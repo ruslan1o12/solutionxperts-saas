@@ -28,6 +28,7 @@ export default async function BusinessSettingsPage() {
           address: data?.address ?? null,
           phone: data?.phone ?? null,
           email: data?.email ?? null,
+          review_link: data?.review_link ?? null,
         }}
       />
     </div>

@@ -109,6 +109,7 @@ create table if not exists public.jobs (
 alter table public.jobs add column if not exists sold_by uuid references auth.users(id);
 alter table public.jobs add column if not exists duration_minutes int default 60;
 alter table public.jobs add column if not exists job_description text;
+alter table public.jobs add column if not exists private_notes text;
 
 create table if not exists public.rate_card (
   id uuid primary key default gen_random_uuid(),
@@ -298,6 +299,7 @@ create table if not exists public.business_settings (
 );
 insert into public.business_settings (id) values (1) on conflict (id) do nothing;
 alter table public.business_settings add column if not exists driver_day_rate numeric default 0;
+alter table public.business_settings add column if not exists review_link text;
 
 create table if not exists public.email_settings (
   id int primary key default 1,

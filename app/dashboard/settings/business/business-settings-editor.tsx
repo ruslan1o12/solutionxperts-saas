@@ -11,6 +11,7 @@ type Settings = {
   address: string | null;
   phone: string | null;
   email: string | null;
+  review_link: string | null;
 };
 
 export default function BusinessSettingsEditor({ initial }: { initial: Settings }) {
@@ -82,6 +83,15 @@ export default function BusinessSettingsEditor({ initial }: { initial: Settings 
           />
         </Field>
       </div>
+
+      <Field label="Google review link (used by the &quot;Send review request&quot; button on jobs)">
+        <input
+          value={form.review_link || ""}
+          onChange={(e) => set("review_link", e.target.value)}
+          placeholder="https://g.page/r/..."
+          className="w-full border border-line rounded-lg px-3 py-2.5"
+        />
+      </Field>
 
       <button
         onClick={save}
