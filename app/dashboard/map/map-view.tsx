@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { createClient } from "@/lib/supabase/client";
@@ -705,6 +706,14 @@ export default function MapView() {
           >
             {following ? "📍 Following" : "📍 Follow me"}
           </button>
+          {isOfficeStaff && (
+            <Link
+              href="/dashboard/map-stats"
+              className="bg-white border border-line text-ink font-bold text-xs rounded-full px-3 py-2 shadow-lg"
+            >
+              📊 Stats
+            </Link>
+          )}
         </div>
 
         {isOfficeStaff && !drawMode && (

@@ -3,6 +3,9 @@ import { getCurrentProfile } from "@/lib/getProfile";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import AnimatedNumber from "./animated-number";
+import DailyRevenueChart from "./daily-revenue-chart";
+import AverageJobSizeChart from "./avg-job-size-chart";
+import Leaderboard from "./leaderboard";
 
 export default async function OverviewPage() {
   const { role, fullName } = await getCurrentProfile();
@@ -10,15 +13,34 @@ export default async function OverviewPage() {
 
   const supabase = await createClient();
 
-  const [{ data: customers }, { data: quotes }, { data: doorLogs }] = await Promise.all([
-    supabase.from("customers").select("id,status"),
-    supabase.from("quotes").select("id,total,status"),
-    supabase.from("door_logs").select("id,created_at,outcome"),
-  ]);
+  const eightMonthsAgo = new Date();
+  eightMonthsAgo.setMonth(eightMonthsAgo.getMonth() - 7);
+  eightMonthsAgo.setDate(1);
+
+  const [{ data: customers }, { data: quotes }, { data: doorLogs }, { data: paidQuotesForCharts }, { data: profiles }, { data: completedJobs }] =
+    await Promise.all([
+      supabase.from("customers").select("id,status"),
+      supabase.from("quotes").select("id,total,status"),
+      supabase.from("door_logs").select("id,created_at,outcome"),
+      supabase
+        .from("quotes")
+        .select("total, paid_at, sold_by, created_by")
+        .eq("status", "Paid")
+        .gte("paid_at", eightMonthsAgo.toISOString()),
+      supabase.from("profiles").select("id, full_name"),
+      supabase
+        .from("jobs")
+        .select("assigned_to, completed_at")
+        .eq("status", "Completed")
+        .gte("completed_at", eightMonthsAgo.toISOString()),
+    ]);
 
   const allCustomers = customers ?? [];
   const allQuotes = quotes ?? [];
   const allDoors = doorLogs ?? [];
+  const paidForCharts = paidQuotesForCharts ?? [];
+  const nameById: Record<string, string> = {};
+  (profiles ?? []).forEach((p) => (nameById[p.id] = p.full_name || "Team member"));
 
   const active = allCustomers.filter((c) => c.status !== "Done" && c.status !== "Lost").length;
   const won = allCustomers.filter((c) => c.status === "Done").length;
@@ -36,6 +58,62 @@ export default async function OverviewPage() {
     (d) => new Date(d.created_at) >= weekAgo && d.outcome === "Answered - Interested"
   ).length;
 
+  // Daily revenue — last 7 days
+  const dailyRevenue = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const dayStr = d.toISOString().slice(0, 10);
+    const total = paidForCharts
+      .filter((q) => q.paid_at?.slice(0, 10) === dayStr)
+      .reduce((s, q) => s + Number(q.total || 0), 0);
+    return { day: d.toLocaleDateString(undefined, { weekday: "short" }), total };
+  });
+
+  // Average job size — last 6 months
+  const avgJobSize = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - (5 - i));
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const monthQuotes = paidForCharts.filter((q) => q.paid_at?.slice(0, 7) === monthKey);
+    const avg = monthQuotes.length
+      ? monthQuotes.reduce((s, q) => s + Number(q.total || 0), 0) / monthQuotes.length
+      : 0;
+    return { month: d.toLocaleDateString(undefined, { month: "short" }), avg };
+  });
+
+  // Leaderboard — current calendar month
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const monthLabel = monthStart.toLocaleDateString(undefined, { month: "long" });
+
+  const thisMonthPaid = paidForCharts.filter((q) => q.paid_at && new Date(q.paid_at) >= monthStart);
+  const salesTotals: Record<string, { jobs: number; amount: number }> = {};
+  thisMonthPaid.forEach((q) => {
+    const id = q.sold_by || q.created_by;
+    if (!id) return;
+    if (!salesTotals[id]) salesTotals[id] = { jobs: 0, amount: 0 };
+    salesTotals[id].jobs += 1;
+    salesTotals[id].amount += Number(q.total || 0);
+  });
+  const salesLeaders = Object.entries(salesTotals)
+    .map(([id, v]) => ({ id, name: nameById[id] || "Team member", ...v }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const thisMonthJobs = (completedJobs ?? []).filter(
+    (j) => j.completed_at && new Date(j.completed_at) >= monthStart
+  );
+  const techTotals: Record<string, { jobs: number }> = {};
+  thisMonthJobs.forEach((j) => {
+    if (!j.assigned_to) return;
+    if (!techTotals[j.assigned_to]) techTotals[j.assigned_to] = { jobs: 0 };
+    techTotals[j.assigned_to].jobs += 1;
+  });
+  const techLeaders = Object.entries(techTotals)
+    .map(([id, v]) => ({ id, name: nameById[id] || "Team member", jobs: v.jobs, amount: 0 }))
+    .sort((a, b) => b.jobs - a.jobs);
+
+
   return (
     <div>
       <div className="mb-6">
@@ -51,6 +129,19 @@ export default async function OverviewPage() {
         <Stat label="Done" value={won} icon="check" color="#2F8F4E" />
         <Stat label="Doors knocked" value={doorsThisWeek} icon="door" color="#3D8B4C" />
         <Stat label="Interested" value={interestedThisWeek} icon="spark" color="#B45F0A" />
+      </div>
+
+      <Leaderboard monthLabel={monthLabel} sales={salesLeaders} tech={techLeaders} />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="bg-white border border-line rounded-2xl p-4 shadow-sm">
+          <div className="font-bold text-sm mb-1">Average job size</div>
+          <AverageJobSizeChart data={avgJobSize} />
+        </div>
+        <div className="bg-white border border-line rounded-2xl p-4 shadow-sm">
+          <div className="font-bold text-sm mb-1">Daily revenue</div>
+          <DailyRevenueChart data={dailyRevenue} />
+        </div>
       </div>
 
       <SectionLabel>Revenue</SectionLabel>
