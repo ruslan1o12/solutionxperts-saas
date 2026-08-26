@@ -281,10 +281,21 @@ create table if not exists public.expenses (
   expense_date date not null default current_date,
   category text not null default 'General',
   amount numeric not null default 0,
+  paid_amount numeric not null default 0,
+  paid_by uuid references auth.users(id),
+  receipt_path text,
   notes text,
   created_by uuid references auth.users(id),
   created_at timestamptz default now()
 );
+alter table public.expenses add column if not exists paid_amount numeric not null default 0;
+alter table public.expenses add column if not exists paid_by uuid references auth.users(id);
+alter table public.expenses add column if not exists receipt_path text;
+
+-- Private storage bucket for expense receipts (admin-only, same access model as job photos)
+insert into storage.buckets (id, name, public)
+values ('receipts', 'receipts', false)
+on conflict (id) do nothing;
 
 create table if not exists public.business_settings (
   id int primary key default 1,
@@ -313,6 +324,11 @@ insert into public.email_settings (id) values (1) on conflict (id) do nothing;
 -- Jobs: track exactly when a job was completed, so daily driver/sales reports
 -- can be attributed to the correct calendar day.
 alter table public.jobs add column if not exists completed_at timestamptz;
+
+-- Jobs marked Completed before completed_at existed would otherwise vanish
+-- from every date-ranged report (Payroll, Team Activity) forever — backfill
+-- using created_at as a reasonable stand-in so historical work still counts.
+update public.jobs set completed_at = created_at where status = 'Completed' and completed_at is null;
 
 -- Work days: track who was "driver for the day" — this is who gets job-completion
 -- notifications alongside admins, and shows up in the daily CSV export.
@@ -518,6 +534,16 @@ create policy "expenses admin all" on public.expenses for all using (
   exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 
+-- Receipts storage: admin-only, matching the expenses table itself.
+drop policy if exists "receipts admin all" on storage.objects;
+create policy "receipts admin all" on storage.objects for all using (
+  bucket_id = 'receipts'
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+) with check (
+  bucket_id = 'receipts'
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
+);
+
 -- Business settings: everyone signed in can read (needed to generate invoice PDFs),
 -- only admins can edit.
 drop policy if exists "business settings read" on public.business_settings;
@@ -538,11 +564,24 @@ create policy "notifications own select" on public.notifications for select usin
 drop policy if exists "notifications own update" on public.notifications;
 create policy "notifications own update" on public.notifications for update using (recipient_id = auth.uid());
 
+-- Helper: is the current user a participant of this conversation? Runs as
+-- SECURITY DEFINER so it bypasses RLS internally — a policy that queries
+-- conversation_participants directly from WITHIN a conversation_participants
+-- policy causes Postgres to recurse into that same policy forever ("infinite
+-- recursion detected"). Routing the check through this function breaks the loop.
+create or replace function public.is_conversation_member(conv_id uuid)
+returns boolean as $$
+  select exists (
+    select 1 from public.conversation_participants
+    where conversation_id = conv_id and user_id = auth.uid()
+  );
+$$ language sql security definer stable;
+
 -- Conversations: readable if it's the General channel, you're a participant, or you're admin.
 drop policy if exists "conversations read" on public.conversations;
 create policy "conversations read" on public.conversations for select using (
   is_general = true
-  or exists (select 1 from public.conversation_participants cp where cp.conversation_id = conversations.id and cp.user_id = auth.uid())
+  or public.is_conversation_member(id)
   or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 drop policy if exists "conversations insert" on public.conversations;
@@ -551,10 +590,7 @@ create policy "conversations insert" on public.conversations for insert with che
 drop policy if exists "participants read" on public.conversation_participants;
 create policy "participants read" on public.conversation_participants for select using (
   user_id = auth.uid()
-  or exists (
-    select 1 from public.conversation_participants cp2
-    where cp2.conversation_id = conversation_participants.conversation_id and cp2.user_id = auth.uid()
-  )
+  or public.is_conversation_member(conversation_id)
   or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
 drop policy if exists "participants insert" on public.conversation_participants;
@@ -570,10 +606,7 @@ create policy "messages read" on public.messages for select using (
   exists (
     select 1 from public.conversations c
     where c.id = messages.conversation_id
-    and (
-      c.is_general = true
-      or exists (select 1 from public.conversation_participants cp where cp.conversation_id = c.id and cp.user_id = auth.uid())
-    )
+    and (c.is_general = true or public.is_conversation_member(c.id))
   )
   or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin')
 );
@@ -583,10 +616,7 @@ create policy "messages insert" on public.messages for insert with check (
   and exists (
     select 1 from public.conversations c
     where c.id = messages.conversation_id
-    and (
-      c.is_general = true
-      or exists (select 1 from public.conversation_participants cp where cp.conversation_id = c.id and cp.user_id = auth.uid())
-    )
+    and (c.is_general = true or public.is_conversation_member(c.id))
   )
 );
 drop policy if exists "messages delete" on public.messages;

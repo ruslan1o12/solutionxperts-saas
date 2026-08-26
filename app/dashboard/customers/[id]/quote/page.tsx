@@ -95,6 +95,34 @@ export default function QuoteBuilderPage() {
     setError(null);
     setWorking(true);
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // Create the invoice first — the payment link needs its id in metadata so
+    // a Stripe webhook can mark the RIGHT invoice paid when the customer pays.
+    const { data: savedQuote, error: insertError } = await supabase
+      .from("quotes")
+      .insert({
+        customer_id: params.id,
+        line_items: lines.filter((l) => l.desc.trim()),
+        tax_rate: Number(taxRate) || 0,
+        total,
+        status: "Sent",
+        due_date: dueDate || null,
+        description: description.trim() || null,
+        salesman_id: user?.id,
+        created_by: user?.id,
+      })
+      .select()
+      .single();
+
+    if (insertError || !savedQuote) {
+      setWorking(false);
+      setError(insertError?.message || "Couldn't save the invoice.");
+      return;
+    }
+
     const res = await fetch("/api/create-payment-link", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -102,6 +130,7 @@ export default function QuoteBuilderPage() {
         description: `Estimate for ${customer?.name ?? "customer"}`,
         amountCents: Math.round(total * 100),
         customerName: customer?.name,
+        quoteId: savedQuote.id,
       }),
     });
     const data = await res.json();
@@ -112,31 +141,11 @@ export default function QuoteBuilderPage() {
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const { data: savedQuote } = await supabase
-      .from("quotes")
-      .insert({
-        customer_id: params.id,
-        line_items: lines.filter((l) => l.desc.trim()),
-        tax_rate: Number(taxRate) || 0,
-        total,
-        status: "Sent",
-        due_date: dueDate || null,
-        stripe_payment_link: data.url,
-        description: description.trim() || null,
-        salesman_id: user?.id,
-        created_by: user?.id,
-      })
-      .select()
-      .single();
-
+    await supabase.from("quotes").update({ stripe_payment_link: data.url }).eq("id", savedQuote.id);
     await supabase.from("customers").update({ status: "Quoted" }).eq("id", params.id);
 
-    setSavedQuoteId(savedQuote?.id ?? null);
-    setPublicToken(savedQuote?.public_token ?? null);
+    setSavedQuoteId(savedQuote.id);
+    setPublicToken(savedQuote.public_token ?? null);
     setPaymentLink(data.url);
     setWorking(false);
   }

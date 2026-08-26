@@ -8,6 +8,7 @@ type Job = {
   id: string;
   status: string;
   scheduled_at: string | null;
+  duration_minutes: number | null;
   customers: { name: string } | null;
   quotes: { total: number } | null;
 };
@@ -52,7 +53,7 @@ export default function ScheduleView() {
 
     supabase
       .from("jobs")
-      .select("id, status, scheduled_at, customers(name), quotes(total)")
+      .select("id, status, scheduled_at, duration_minutes, customers(name), quotes(total)")
       .gte("scheduled_at", dayStart.toISOString())
       .lt("scheduled_at", dayEnd.toISOString())
       .order("scheduled_at", { ascending: true })
@@ -72,6 +73,63 @@ export default function ScheduleView() {
     const minutesFromStart = (d.getHours() - START_HOUR) * 60 + d.getMinutes();
     return Math.max(0, (minutesFromStart / 60) * HOUR_HEIGHT);
   }
+
+  function heightFor(job: Job) {
+    const minutes = job.duration_minutes || 60;
+    return Math.max(48, (minutes / 60) * HOUR_HEIGHT - 4);
+  }
+
+  // Jobs scheduled at overlapping times get laid out in side-by-side columns
+  // instead of stacking directly on top of each other — same approach any
+  // calendar app uses (Google Calendar, etc).
+  function layoutColumns(list: Job[]): { job: Job; col: number; of: number }[] {
+    type Item = { job: Job; start: number; end: number };
+    const withTimes: Item[] = list
+      .filter((j) => j.scheduled_at)
+      .map((j) => {
+        const start = new Date(j.scheduled_at!).getTime();
+        const end = start + (j.duration_minutes || 60) * 60000;
+        return { job: j, start, end };
+      })
+      .sort((a, b) => a.start - b.start);
+
+    const result: { job: Job; col: number; of: number }[] = [];
+    let cluster: Item[] = [];
+    let clusterMaxEnd = -Infinity;
+
+    function flushCluster() {
+      if (cluster.length === 0) return;
+      const columnEnds: number[] = [];
+      const cols: number[] = [];
+      cluster.forEach((item) => {
+        let col = columnEnds.findIndex((end) => end <= item.start);
+        if (col === -1) {
+          col = columnEnds.length;
+          columnEnds.push(item.end);
+        } else {
+          columnEnds[col] = item.end;
+        }
+        cols.push(col);
+      });
+      const of = columnEnds.length;
+      cluster.forEach((item, i) => result.push({ job: item.job, col: cols[i], of }));
+      cluster = [];
+      clusterMaxEnd = -Infinity;
+    }
+
+    withTimes.forEach((item) => {
+      if (cluster.length > 0 && item.start >= clusterMaxEnd) {
+        flushCluster();
+      }
+      cluster.push(item);
+      clusterMaxEnd = Math.max(clusterMaxEnd, item.end);
+    });
+    flushCluster();
+
+    return result;
+  }
+
+  const laidOut = layoutColumns(jobs);
 
   return (
     <div className="-mx-4 -mt-4">
@@ -121,19 +179,21 @@ export default function ScheduleView() {
           ))}
 
           <div className="ml-10 relative" style={{ height: hours.length * HOUR_HEIGHT }}>
-            {jobs.map((job) => (
+            {laidOut.map(({ job, col, of }) => (
               <Link
                 key={job.id}
                 href={`/dashboard/jobs/${job.id}`}
-                className="absolute left-0 right-2 bg-white rounded-lg shadow-sm border-l-4 px-3 py-2"
+                className="absolute bg-white rounded-lg shadow-sm border-l-4 px-2.5 py-2 overflow-hidden"
                 style={{
                   top: topFor(job),
+                  height: heightFor(job),
+                  left: `${(col / of) * 100}%`,
+                  width: `calc(${100 / of}% - 6px)`,
                   borderLeftColor: STATUS_COLOR[job.status] ?? STATUS_COLOR.Scheduled,
-                  minHeight: 52,
                 }}
               >
                 <div className="font-bold text-sm truncate">{job.customers?.name ?? "Customer"}</div>
-                <div className="text-[11px] text-neutral-500">
+                <div className="text-[11px] text-neutral-500 truncate">
                   {job.scheduled_at &&
                     new Date(job.scheduled_at).toLocaleTimeString(undefined, {
                       hour: "numeric",

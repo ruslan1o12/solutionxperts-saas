@@ -101,15 +101,15 @@ export default function EnablePushButton() {
     <button
       onClick={status === "on" ? disable : enable}
       disabled={working}
-      className={`w-full font-bold rounded-xl py-3 mb-4 disabled:opacity-60 ${
-        status === "on" ? "bg-white border-2 border-line text-ink" : "bg-signal text-white"
+      className={`w-full font-semibold text-xs rounded-lg py-2 mb-4 disabled:opacity-60 ${
+        status === "on" ? "bg-white border border-line text-ink" : "bg-signal text-white"
       }`}
     >
       {working
         ? "Working..."
         : status === "on"
-        ? "Notifications on for this device — tap to turn off"
-        : "Turn on notifications for this device"}
+        ? "🔔 Notifications on — tap to turn off"
+        : "🔕 Turn on notifications for this device"}
     </button>
   );
 }

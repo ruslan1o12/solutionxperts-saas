@@ -1,8 +1,7 @@
 import { getCurrentProfile } from "@/lib/getProfile";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 
-const SECTIONS = [
+const ADMIN_SECTIONS = [
   {
     href: "/dashboard/team",
     title: "Team & roles",
@@ -42,24 +41,32 @@ const SECTIONS = [
 
 export default async function SettingsHubPage() {
   const { role } = await getCurrentProfile();
-  if (role !== "admin") redirect("/dashboard");
+  const isAdmin = role === "admin";
 
   return (
     <div>
       <div className="text-xl font-extrabold mb-1">Settings</div>
-      <p className="text-sm text-neutral-500 mb-4">Everything admin-only lives here.</p>
+      <p className="text-sm text-neutral-500 mb-4">
+        {isAdmin ? "Your account, plus everything admin-only." : "Your account settings."}
+      </p>
 
       <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3">
-        {SECTIONS.map((s) => (
-          <Link
-            key={s.href}
-            href={s.href}
-            className="bg-white border border-line rounded-2xl p-4 hover:shadow-sm"
-          >
-            <div className="font-bold text-ink mb-1">{s.title}</div>
-            <div className="text-xs text-neutral-500">{s.desc}</div>
-          </Link>
-        ))}
+        <Link href="/dashboard/profile" className="bg-white border border-line rounded-2xl p-4 hover:shadow-sm">
+          <div className="font-bold text-ink mb-1">My profile</div>
+          <div className="text-xs text-neutral-500">Your name, phone, and login email.</div>
+        </Link>
+
+        {isAdmin &&
+          ADMIN_SECTIONS.map((s) => (
+            <Link
+              key={s.href}
+              href={s.href}
+              className="bg-white border border-line rounded-2xl p-4 hover:shadow-sm"
+            >
+              <div className="font-bold text-ink mb-1">{s.title}</div>
+              <div className="text-xs text-neutral-500">{s.desc}</div>
+            </Link>
+          ))}
       </div>
     </div>
   );

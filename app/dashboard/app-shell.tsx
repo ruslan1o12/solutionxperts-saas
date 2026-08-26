@@ -42,7 +42,6 @@ export default function AppShell({
     { href: "/dashboard/notifications", label: "Notifications", icon: "bell" },
     { href: "/dashboard/messages", label: "Team Chat", icon: "chat" },
     { href: "/dashboard/my-day", label: "My Day", icon: "clock" },
-    { href: "/dashboard/profile", label: "My Profile", icon: "users" },
   ];
 
   const businessLinks: NavItem[] = [
@@ -95,14 +94,10 @@ export default function AppShell({
               ))}
             </>
           )}
-          {isAdmin && (
-            <>
-              <div className="px-4 pt-5 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                Admin
-              </div>
-              <SidebarLink item={settingsLink} active={isActive(settingsLink.href)} />
-            </>
-          )}
+          <div className="px-4 pt-5 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+            Settings
+          </div>
+          <SidebarLink item={settingsLink} active={isActive(settingsLink.href)} />
         </nav>
         <div className="p-4 border-t border-white/10">
           <SignOutButton />
@@ -182,14 +177,10 @@ export default function AppShell({
                     ))}
                   </>
                 )}
-                {isAdmin && (
-                  <>
-                    <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                      Admin
-                    </div>
-                    <DrawerLink link={settingsLink} active={isActive(settingsLink.href)} onClick={() => setDrawerOpen(false)} />
-                  </>
-                )}
+                <div className="px-5 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  Settings
+                </div>
+                <DrawerLink link={settingsLink} active={isActive(settingsLink.href)} onClick={() => setDrawerOpen(false)} />
               </div>
               <div className="p-4 border-t border-line">
                 <SignOutButton />

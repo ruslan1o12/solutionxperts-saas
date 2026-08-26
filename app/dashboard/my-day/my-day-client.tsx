@@ -47,6 +47,7 @@ export default function MyDayPage() {
   const [isDriver, setIsDriver] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -88,36 +89,41 @@ export default function MyDayPage() {
 
   async function startDay() {
     setWorking(true);
+    setError(null);
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    await supabase
+    const { error: err } = await supabase
       .from("work_days")
       .upsert(
         { user_id: user?.id, work_date: todayStr(), started_at: new Date().toISOString() },
         { onConflict: "user_id,work_date" }
       );
     setWorking(false);
+    if (err) return setError(err.message);
     load();
   }
 
   async function endDay() {
     setWorking(true);
+    setError(null);
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    await supabase
+    const { error: err } = await supabase
       .from("work_days")
       .update({ ended_at: new Date().toISOString() })
       .eq("user_id", user?.id)
       .eq("work_date", todayStr());
     setWorking(false);
+    if (err) return setError(err.message);
     load();
   }
 
   async function saveDoorEvent() {
     if (pendingDelta === null) return;
     setWorking(true);
+    setError(null);
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -130,7 +136,7 @@ export default function MyDayPage() {
     const nextEvents = [...events, newEvent];
     const doorsKnocked = nextEvents.reduce((s, e) => s + e.delta, 0);
 
-    await supabase.from("work_days").upsert(
+    const { error: err } = await supabase.from("work_days").upsert(
       {
         user_id: user?.id,
         work_date: todayStr(),
@@ -140,27 +146,33 @@ export default function MyDayPage() {
       { onConflict: "user_id,work_date" }
     );
 
+    setWorking(false);
+    if (err) return setError(err.message);
     setEvents(nextEvents);
     setPendingDelta(null);
     setNoteInput("");
-    setWorking(false);
   }
 
-  async function saveNotesAndDriver() {
+  // Takes the new driver value directly instead of reading state — calling this
+  // right after setIsDriver() via setTimeout used to save the OLD value, since
+  // the closure was captured before React re-rendered with the new one.
+  async function saveNotesAndDriver(driverOverride?: boolean) {
     setWorking(true);
+    setError(null);
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    await supabase.from("work_days").upsert(
+    const { error: err } = await supabase.from("work_days").upsert(
       {
         user_id: user?.id,
         work_date: todayStr(),
         notes: notes.trim() || null,
-        is_driver: isDriver,
+        is_driver: driverOverride !== undefined ? driverOverride : isDriver,
       },
       { onConflict: "user_id,work_date" }
     );
     setWorking(false);
+    if (err) return setError(err.message);
     load();
   }
 
@@ -176,6 +188,12 @@ export default function MyDayPage() {
         and where the day went.
       </p>
 
+      {error && (
+        <div className="bg-[#F1E7E6] border border-[#E7CFCD] text-danger text-sm rounded-xl p-3 mb-4">
+          Couldn&apos;t save: {error}
+        </div>
+      )}
+
       <div className="bg-white border border-line rounded-2xl p-4 mb-4">
         <label className="flex items-center gap-3 cursor-pointer">
           <span
@@ -190,8 +208,9 @@ export default function MyDayPage() {
             type="checkbox"
             checked={isDriver}
             onChange={(e) => {
-              setIsDriver(e.target.checked);
-              setTimeout(saveNotesAndDriver, 0);
+              const next = e.target.checked;
+              setIsDriver(next);
+              saveNotesAndDriver(next);
             }}
             className="hidden"
           />
@@ -317,7 +336,7 @@ export default function MyDayPage() {
           className="w-full border border-line rounded-lg px-3 py-2.5 mb-3 min-h-20"
         />
         <button
-          onClick={saveNotesAndDriver}
+          onClick={() => saveNotesAndDriver()}
           disabled={working}
           className="w-full bg-signal text-white font-bold rounded-xl py-2.5 disabled:opacity-60"
         >

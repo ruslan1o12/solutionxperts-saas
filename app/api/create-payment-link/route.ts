@@ -3,7 +3,7 @@ import Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
   try {
-    const { description, amountCents, customerName } = await req.json();
+    const { description, amountCents, customerName, quoteId } = await req.json();
 
     if (!amountCents || amountCents < 50) {
       return NextResponse.json(
@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
+      // Carried onto the resulting Checkout Session — lets the webhook know
+      // exactly which invoice to mark paid when the customer completes payment.
+      metadata: quoteId ? { quote_id: quoteId } : undefined,
     });
 
     return NextResponse.json({ url: paymentLink.url });
