@@ -194,8 +194,8 @@ export default function ConversationPage() {
                         m.redacted
                           ? "bg-neutral-100 text-neutral-400 italic"
                           : mine
-                          ? "bg-signal text-white rounded-br-sm"
-                          : "bg-[#F4F7F2] text-ink rounded-bl-sm"
+                          ? "bg-[#1B4332] text-white rounded-br-sm"
+                          : "bg-[#E4E7E1] text-[#1B4332] rounded-bl-sm"
                       }`}
                     >
                       {m.redacted ? "This message was redacted" : m.body}

@@ -754,3 +754,33 @@ alter table public.work_days drop constraint if exists work_days_user_id_fkey;
 alter table public.work_days
   add constraint work_days_user_id_fkey
   foreign key (user_id) references auth.users(id) on delete cascade;
+
+-- ============================================================
+-- Recurring customers / service contracts
+-- ============================================================
+create table if not exists public.recurring_contracts (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid references public.customers(id) on delete cascade,
+  job_description text not null default '',
+  frequency text not null default 'yearly',          -- monthly | quarterly | yearly
+  price numeric not null default 0,
+  agreement_text text,
+  status text not null default 'Active',             -- Active | Paused | Cancelled
+  start_date date,
+  next_service_date date,
+  last_service_date date,
+  notes text,
+  public_token uuid default gen_random_uuid(),
+  agreement_status text not null default 'Not sent', -- Not sent | Sent | Accepted | Declined
+  agreement_sent_at timestamptz,
+  agreement_responded_at timestamptz,
+  signed_name text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz default now()
+);
+create unique index if not exists recurring_contracts_token_idx on public.recurring_contracts(public_token);
+alter table public.recurring_contracts enable row level security;
+
+drop policy if exists "team all recurring" on public.recurring_contracts;
+create policy "team all recurring" on public.recurring_contracts for all
+  using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');

@@ -24,7 +24,7 @@ export default async function OverviewPage() {
       supabase.from("door_logs").select("id,created_at,outcome"),
       supabase
         .from("quotes")
-        .select("total, paid_at, sold_by, created_by")
+        .select("total, paid_at, salesman_id, created_by")
         .eq("status", "Paid")
         .gte("paid_at", eightMonthsAgo.toISOString()),
       supabase.from("profiles").select("id, full_name"),
@@ -90,7 +90,7 @@ export default async function OverviewPage() {
   const thisMonthPaid = paidForCharts.filter((q) => q.paid_at && new Date(q.paid_at) >= monthStart);
   const salesTotals: Record<string, { jobs: number; amount: number }> = {};
   thisMonthPaid.forEach((q) => {
-    const id = q.sold_by || q.created_by;
+    const id = q.salesman_id || q.created_by;
     if (!id) return;
     if (!salesTotals[id]) salesTotals[id] = { jobs: 0, amount: 0 };
     salesTotals[id].jobs += 1;

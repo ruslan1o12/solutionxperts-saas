@@ -5,6 +5,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { FONT_OPTIONS, type FontKey } from "@/lib/theme-constants";
 
+// WCAG-ish relative luminance check — anything above this is too light to
+// reliably show white text on top of.
+function isTooLight(hex: string): boolean {
+  const c = hex.replace("#", "");
+  if (c.length !== 6) return false;
+  const r = parseInt(c.slice(0, 2), 16) / 255;
+  const g = parseInt(c.slice(2, 4), 16) / 255;
+  const b = parseInt(c.slice(4, 6), 16) / 255;
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.6;
+}
+
 export default function ThemeEditor({
   initial,
 }: {
@@ -44,6 +56,25 @@ export default function ThemeEditor({
   async function save() {
     setSaving(true);
     setError(null);
+
+    // Buttons and your own chat messages show WHITE text on top of this color
+    // throughout the app — if it's too light, that text becomes unreadable
+    // everywhere at once. Block it here instead of letting it ship silently.
+    if (isTooLight(primaryColor)) {
+      setSaving(false);
+      setError(
+        "That primary color is too light — white button text would become invisible across the whole app. Pick something darker."
+      );
+      return;
+    }
+    if (isTooLight(inkColor)) {
+      setSaving(false);
+      setError(
+        "That dark/header color is too light — white text in the header and elsewhere would become invisible. Pick something darker."
+      );
+      return;
+    }
+
     const { error } = await supabase
       .from("theme_settings")
       .update({

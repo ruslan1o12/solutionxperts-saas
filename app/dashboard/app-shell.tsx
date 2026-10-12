@@ -10,7 +10,7 @@ import NotificationBell from "./notification-bell";
 
 type Role = "admin" | "salesman" | "technician" | "driver" | null;
 type NavItem = { href: string; label: string; icon: IconName };
-type IconName = "camera" | "map" | "calendar" | "grid" | "users" | "invoice" | "team" | "chart" | "clock" | "cash" | "bell" | "chat" | "gear";
+type IconName = "camera" | "map" | "calendar" | "grid" | "users" | "invoice" | "team" | "chart" | "clock" | "cash" | "bell" | "chat" | "gear" | "repeat";
 
 export default function AppShell({
   role,
@@ -48,6 +48,7 @@ export default function AppShell({
     { href: "/dashboard", label: "Overview", icon: "grid" },
     { href: "/dashboard/customers", label: "Customers", icon: "users" },
     { href: "/dashboard/invoices", label: "Invoices", icon: "invoice" },
+    role !== "technician" && { href: "/dashboard/recurring", label: "Recurring", icon: "repeat" },
     isAdmin && { href: "/dashboard/finances", label: "Finances", icon: "cash" },
   ].filter(Boolean) as NavItem[];
 
@@ -294,6 +295,12 @@ function NavIcon({ name }: { name: IconName }) {
           <circle cx="9" cy="8" r="3.5" stroke={s} strokeWidth="2" />
           <path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" stroke={s} strokeWidth="2" strokeLinecap="round" />
           <path d="M16.5 4.5a3.5 3.5 0 0 1 0 7M20 20a5.5 5.5 0 0 0-4-5.3" stroke={s} strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case "repeat":
+      return (
+        <svg {...common}>
+          <path d="M4 11V9a3 3 0 0 1 3-3h11m0 0-3-3m3 3-3 3M20 13v2a3 3 0 0 1-3 3H6m0 0 3 3m-3-3 3-3" stroke={s} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     case "invoice":

@@ -13,7 +13,7 @@ type Profile = {
   pay_type: string | null;
   pay_rate: number | null;
 };
-type PaidQuote = { id: string; total: number; sold_by: string | null; created_by: string | null; paid_at: string };
+type PaidQuote = { id: string; total: number; salesman_id: string | null; created_by: string | null; paid_at: string };
 type CompletedJob = { id: string; assigned_to: string | null; completed_at: string; quotes: { total: number }[] | { total: number } | null };
 type WorkDay = { user_id: string; work_date: string; started_at: string | null; ended_at: string | null; is_driver: boolean | null };
 
@@ -62,7 +62,7 @@ export default function PayrollClient({
   }
 
   const rows = profiles.map((p) => {
-    const mySales = paidQuotes.filter((q) => (q.sold_by || q.created_by) === p.id && q.paid_at >= start);
+    const mySales = paidQuotes.filter((q) => (q.salesman_id || q.created_by) === p.id && q.paid_at >= start);
     const salesCount = mySales.length;
     const salesTotal = mySales.reduce((s, q) => s + Number(q.total || 0), 0);
     const commissionEarned = salesTotal * ((p.commission_rate || 0) / 100);

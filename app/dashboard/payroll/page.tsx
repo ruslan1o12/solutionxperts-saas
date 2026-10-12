@@ -21,7 +21,7 @@ export default async function PayrollPage() {
         .select("id, full_name, role, commission_rate, pay_type, pay_rate"),
       supabase
         .from("quotes")
-        .select("id, total, sold_by, created_by, paid_at")
+        .select("id, total, salesman_id, created_by, paid_at")
         .eq("status", "Paid")
         .gte("paid_at", rangeStart),
       supabase
